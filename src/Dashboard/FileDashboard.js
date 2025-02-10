@@ -205,7 +205,6 @@
 // };
 
 // export default Dashboard;
-
 import React, { useState, useEffect } from 'react';
 import { BarChart3, Users, FileText, LogOut, Download, CheckSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -221,7 +220,7 @@ const Dashboard = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedFiles, setSelectedFiles] = useState(new Set());
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, ROLES } = useAuth();
   const { invoices, INVOICE_STATUS, canEditInvoice, updateInvoiceStatus, downloadInvoice } = useInvoices();
 
   const handleLogout = () => {
@@ -239,42 +238,67 @@ const Dashboard = () => {
     setSelectedFiles(newSelected);
   };
 
-  const handleApproveSelected = () => {
-    selectedFiles.forEach(fileId => {
-      const invoice = invoices.find(inv => inv.id === fileId);
-      if (!invoice || !canEditInvoice(invoice)) return;
-
-      let newStatus;
-     
-      switch (user.role) {
-        case 'FINANCE_REVIEWER_1':
-          newStatus = INVOICE_STATUS.REVIEW_1;  // Change to 'First Approve'
-          break;
-        case 'FINANCE_REVIEWER_2':
-          newStatus = INVOICE_STATUS.REVIEW_2;  // Change to 'Second Approve'
-          break;
-        case 'FINANCE_REVIEWER_3':
-          newStatus = INVOICE_STATUS.REVIEW_3;  // Change to 'Third Approve'
-          break;
-        case 'FINANCE_REVIEWER_4':
-          newStatus = INVOICE_STATUS.REVIEW_4;  // Change to 'Fourth Approve'
-          break;
-        case 'FINANCE_REVIEWER_5':
-          newStatus = INVOICE_STATUS.REVIEW_5;  // Change to 'Fifth Approve'
-          break;
-        default:
-          return;
-      }
-
-      updateInvoiceStatus(fileId, newStatus);
-    });
-    setSelectedFiles(new Set());
+  const getStageNumber = (status) => {
+    switch (status) {
+      case INVOICE_STATUS.PENDING: return '0/5';
+      case INVOICE_STATUS.REVIEW_1: return '1/5';
+      case INVOICE_STATUS.REVIEW_2: return '2/5';
+      case INVOICE_STATUS.REVIEW_3: return '3/5';
+      case INVOICE_STATUS.REVIEW_4: return '4/5';
+      case INVOICE_STATUS.REVIEW_5: return '5/5';
+      case INVOICE_STATUS.PAID: return 'Completed';
+      default: return '0/5';
+    }
   };
 
-  const handleDownload = (fileId) => {
+  const getNextReviewer = (status) => {
+    const MOCK_USERS = [
+      { role: ROLES.FINANCE_REVIEWER_1, username: 'Quachi' },
+      { role: ROLES.FINANCE_REVIEWER_2, username: 'Vanessa' },
+      { role: ROLES.FINANCE_REVIEWER_3, username: 'Alex' },
+      { role: ROLES.FINANCE_REVIEWER_4, username: 'BAffour' },
+      { role: ROLES.FINANCE_REVIEWER_5, username: 'Patrick' }
+    ];
+
+    switch (status) {
+      case INVOICE_STATUS.PENDING:
+        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_1)?.username;
+      case INVOICE_STATUS.REVIEW_1:
+        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_2)?.username;
+      case INVOICE_STATUS.REVIEW_2:
+        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_3)?.username;
+      case INVOICE_STATUS.REVIEW_3:
+        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_4)?.username;
+      case INVOICE_STATUS.REVIEW_4:
+        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_5)?.username;
+      default:
+        return 'Complete';
+    }
+  };
+
+  const handleApproveAndDownload = (fileId) => {
     const invoice = invoices.find(inv => inv.id === fileId);
-    if (invoice) {
+    if (invoice && selectedFiles.has(fileId)) {
+      updateInvoiceStatus(fileId, getNextStatus(invoice.status));
       downloadInvoice(invoice);
+      setSelectedFiles(new Set());
+    }
+  };
+
+  const getNextStatus = (currentStatus) => {
+    switch (currentStatus) {
+      case INVOICE_STATUS.PENDING:
+        return INVOICE_STATUS.REVIEW_1;
+      case INVOICE_STATUS.REVIEW_1:
+        return INVOICE_STATUS.REVIEW_2;
+      case INVOICE_STATUS.REVIEW_2:
+        return INVOICE_STATUS.REVIEW_3;
+      case INVOICE_STATUS.REVIEW_3:
+        return INVOICE_STATUS.REVIEW_4;
+      case INVOICE_STATUS.REVIEW_4:
+        return INVOICE_STATUS.REVIEW_5;
+      default:
+        return INVOICE_STATUS.PAID;
     }
   };
 
@@ -310,6 +334,7 @@ const Dashboard = () => {
           <th>Date</th>
           <th>Time</th>
           <th>Action</th>
+          <th>Approve</th>
           <th>Download</th>
         </tr>
       </thead>
@@ -333,10 +358,20 @@ const Dashboard = () => {
               )}
             </td>
             <td>
+              {canEditInvoice(file) && selectedFiles.has(file.id) && (
+                <button 
+                  className="approve-selected-btn"
+                  onClick={() => handleApproveAndDownload(file.id)}
+                >
+                  Approve
+                </button>
+              )}
+            </td>
+            <td>
               {canEditInvoice(file) && (
                 <button
                   className="download-btn"
-                  onClick={() => handleDownload(file.id)}
+                  disabled={!selectedFiles.has(file.id)}
                 >
                   <Download size={16} />
                 </button>
@@ -369,7 +404,7 @@ const Dashboard = () => {
             <td>{file.time}</td>
             <td>
               <span className={`status-badge ${file.status.toLowerCase()}`}>
-                {file.status}
+                {getStageNumber(file.status)} → {getNextReviewer(file.status)}
               </span>
             </td>
             <td>{file.sender === user.email ? 'Me' : file.sender}</td>
@@ -378,20 +413,6 @@ const Dashboard = () => {
       </tbody>
     </table>
   );
-  
-  // Update the user profile section in the sidebar
-  <div className="user-profile">
-  <div className="profile-info">
-    <div>
-      <h3>{user?.username || 'Unknown User'}</h3>
-      <p>{user?.department} - {user?.role}</p>
-    </div>
-  </div>
-  <div className="logout-button" onClick={handleLogout}>
-    <LogOut size={20} />
-    <span>Log Out=</span>
-  </div>
-</div>
 
   const DashboardContent = () => {
     const stats = getStats();
@@ -402,7 +423,7 @@ const Dashboard = () => {
           <div className="stat-card purple">
             <h3>Visible Files</h3>
             <h2>{stats.totalFiles}</h2>
-            <p>Based on your role: {user?.role}</p>
+            <p>Department: {user?.department}</p>
           </div>
           <div className="stat-card blue">
             <h3>Average Upload Size</h3>
@@ -420,17 +441,7 @@ const Dashboard = () => {
           <div className="section-header">
             <h2>Files For Review</h2>
             {user?.department === 'FINANCE' && (
-              <>
-                <span>Finance Review Level: {user?.role.split('_')[2]}</span>
-                {selectedFiles.size > 0 && (
-                  <button 
-                    className="approve-selected-btn"
-                    onClick={handleApproveSelected}
-                  >
-                    Approve Selected
-                  </button>
-                )}
-              </>
+              <span>Finance Review Level: {user?.role.split('_')[2]}</span>
             )}
           </div>
 
@@ -510,7 +521,7 @@ const Dashboard = () => {
           <div className="user-profile">
             <div className="profile-info">
               <div>
-              <h3>{user?.username || 'Unknown User'}</h3>
+                <h3>{user?.username || 'Unknown User'}</h3>
                 <p>{user?.department}</p>
               </div>
             </div>

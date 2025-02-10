@@ -24,35 +24,43 @@ export const InvoiceProvider = ({ children }) => {
     }
   }, []);
 
-  const addInvoice = (file, amount) => {
+  const addInvoice = async (file, amount) => {
     if (!user) return null;
 
-    const newInvoice = {
-      id: Date.now().toString(),
-      name: file.name,
-      type: file.type,
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toLocaleTimeString(),
-      status: INVOICE_STATUS.PENDING,
-      number: amount,
-      sender: user.email, // Changed from user.name to user.email
-      department: user.department,
-      uploadedBy: user.email, // Changed from user.name to user.email
-      size: (file.size / 1024).toFixed(2),
-      lastModified: file.lastModified,
-      content: null
-    };
+    return new Promise((resolve) => {
+      const newInvoice = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        name: file.name,
+        type: file.type,
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString(),
+        status: INVOICE_STATUS.PENDING,
+        number: amount,
+        sender: user.email,
+        department: user.department,
+        uploadedBy: user.email,
+        size: (file.size / 1024).toFixed(2),
+        lastModified: file.lastModified,
+        content: null
+      };
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const updatedInvoice = { ...newInvoice, content: e.target.result };
-      const updatedInvoices = [...invoices, updatedInvoice];
-      setInvoices(updatedInvoices);
-      localStorage.setItem('invoices', JSON.stringify(updatedInvoices));
-    };
-    reader.readAsDataURL(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const updatedInvoice = { ...newInvoice, content: e.target.result };
+        setInvoices(prevInvoices => {
+          const newInvoices = [...prevInvoices, updatedInvoice];
+          localStorage.setItem('invoices', JSON.stringify(newInvoices));
+          return newInvoices;
+        });
+        resolve(updatedInvoice);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
 
-    return newInvoice;
+  const addMultipleInvoices = async (files, amount) => {
+    if (!user) return null;
+    return Promise.all(files.map(file => addInvoice(file, amount)));
   };
 
   const updateInvoiceStatus = (invoiceId, newStatus) => {
@@ -67,7 +75,6 @@ export const InvoiceProvider = ({ children }) => {
     if (!user) return [];
 
     if (user.department === 'FINANCE') {
-      // Finance department can see files based on their review level
       switch (user.role) {
         case 'FINANCE_REVIEWER_1':
           return invoices.filter(i => i.status === INVOICE_STATUS.PENDING);
@@ -83,7 +90,6 @@ export const InvoiceProvider = ({ children }) => {
           return [];
       }
     } else {
-      // Other departments can only see their own department's files
       return invoices.filter(i => i.department === user.department);
     }
   };
@@ -125,6 +131,7 @@ export const InvoiceProvider = ({ children }) => {
     <InvoiceContext.Provider value={{
       invoices: getVisibleInvoices(),
       addInvoice,
+      addMultipleInvoices,
       updateInvoiceStatus,
       canEditInvoice,
       downloadInvoice,

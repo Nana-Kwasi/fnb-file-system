@@ -6,24 +6,28 @@ import { useAuth } from '../Context/AuthContext';
 import '../upload.css';
 
 const Upload = () => {
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [fileFilter, setFileFilter] = useState('all');
-  const { addInvoice, invoices } = useInvoices();
-  const { user, } = useAuth();
+  const { addMultipleInvoices, invoices } = useInvoices();
+  const { user } = useAuth();
 
   const handleFileSelect = (event) => {
-    const file = event.target.files[0];
-    if (fileFilter === 'pdf' && !file.type.includes('pdf')) {
-      alert('Please select a PDF file');
+    const files = Array.from(event.target.files);
+    if (files.length > 4) {
+      alert('Maximum 4 files can be uploaded at once');
       return;
     }
-    setSelectedFile(file);
+    if (fileFilter === 'pdf' && files.some(file => !file.type.includes('pdf'))) {
+      alert('Please select only PDF files');
+      return;
+    }
+    setSelectedFiles(files);
   };
 
-  const handleSubmit = () => {
-    if (selectedFile) {
-      addInvoice(selectedFile, 0);
-      setSelectedFile(null);
+  const handleSubmit = async () => {
+    if (selectedFiles.length > 0) {
+      await addMultipleInvoices(selectedFiles, 0);
+      setSelectedFiles([]);
     }
   };
 
@@ -68,14 +72,19 @@ const Upload = () => {
             className="file-input"
             id="fileInput"
             accept={fileFilter === 'pdf' ? '.pdf' : undefined}
+            multiple
           />
           <label htmlFor="fileInput" className="file-label">
             <UploadIcon size={30} />
-            Choose File
+            Choose Files
           </label>
-          {selectedFile && (
+          {selectedFiles.length > 0 && (
             <>
-              <span className="file-name">{selectedFile.name}</span>
+              <div className="selected-files">
+                {selectedFiles.map((file, index) => (
+                  <span key={index} className="file-name">{file.name}</span>
+                ))}
+              </div>
               <button onClick={handleSubmit} className="submit-button">
                 Upload
               </button>
@@ -131,7 +140,6 @@ const Upload = () => {
                 <th>Time</th>
                 <th>Uploader</th>
                 <th>Status</th>
-
               </tr>
             </thead>
             <tbody>
@@ -143,7 +151,6 @@ const Upload = () => {
                   <td>{file.date}</td>
                   <td>{file.time}</td>
                   <td>{file.sender === user.email ? 'Me' : file.sender}</td>
-
                   <td>
                     <span className="status-badge">
                       {file.status}
