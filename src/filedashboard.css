@@ -379,7 +379,10 @@ td span {
     background-color: #ECFDF5;
     color: #065F46;
   }
-  
+  .time{
+    font-size: 30px;
+    color: #065F46;
+  }
   .status-badge.paid {
     background-color: #D1FAE5;
     color: #065F46;

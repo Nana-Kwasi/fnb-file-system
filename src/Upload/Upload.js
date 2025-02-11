@@ -48,9 +48,7 @@ const Upload = () => {
     size: parseFloat(file.size)
   }));
 
-  const currentFiles = invoices.filter(file => 
-    fileFilter === 'all' || (fileFilter === 'pdf' && file.type.includes('pdf'))
-  );
+  const totalFiles = invoices.length;
 
   return (
     <div className="upload-container">
@@ -81,9 +79,7 @@ const Upload = () => {
           {selectedFiles.length > 0 && (
             <>
               <div className="selected-files">
-                {selectedFiles.map((file, index) => (
-                  <span key={index} className="file-name">{file.name}</span>
-                ))}
+                <span className="file-count">{selectedFiles.length} files selected</span>
               </div>
               <button onClick={handleSubmit} className="submit-button">
                 Upload
@@ -108,6 +104,15 @@ const Upload = () => {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
+                <text
+                  x="50%"
+                  y="50%"
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="total-files-text"
+                >
+                  {totalFiles}
+                </text>
                 <Tooltip />
                 <Legend />
               </PieChart>
@@ -126,40 +131,6 @@ const Upload = () => {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-
-        <div className="table-container">
-          <h3 className="chart-title">Current Files ({currentFiles.length})</h3>
-          <table className="upload-table">
-            <thead>
-              <tr>
-                <th>File Name</th>
-                <th>Type</th>
-                <th>Size (KB)</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Uploader</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentFiles.map((file, index) => (
-                <tr key={index}>
-                  <td>{file.name}</td>
-                  <td>{file.type}</td>
-                  <td>{file.size}</td>
-                  <td>{file.date}</td>
-                  <td>{file.time}</td>
-                  <td>{file.sender === user.email ? 'Me' : file.sender}</td>
-                  <td>
-                    <span className="status-badge">
-                      {file.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>

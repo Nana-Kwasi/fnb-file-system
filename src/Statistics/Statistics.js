@@ -77,6 +77,28 @@ const Statistics = () => {
   const chartsWithData = pieData.filter(chart => 
     chart.data.some(item => item.value > 0)
   );
+  const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, value, name }) => {
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    
+    // Only show label if the segment is large enough (more than 5%)
+    if (percent < 0.05) return null;
+    
+    return (
+      <text 
+        x={x} 
+        y={y} 
+        fill="white" 
+        textAnchor={x > cx ? 'start' : 'end'} 
+        dominantBaseline="central"
+        className="chart-label"
+      >
+        {`${value}`}
+      </text>
+    );
+  };
 
   return (
     <div className="statistics-page">
@@ -89,7 +111,7 @@ const Statistics = () => {
             <div className="card-content">
               <div className="chart-container">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
+                  <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                     <Pie
                       data={chart.data}
                       cx="50%"
@@ -98,14 +120,29 @@ const Statistics = () => {
                       outerRadius={80}
                       paddingAngle={5}
                       dataKey="value"
-                      label={({ name, value }) => `${name}: ${value}`}
+                      labelLine={false}
+                      label={renderCustomizedLabel}
                     >
                       {chart.data.map((entry, i) => (
                         <Cell key={`cell-${i}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => [`${value} files`, 'Count']} />
-                    <Legend verticalAlign="bottom" height={36} />
+                    <Tooltip 
+                      formatter={(value) => [`${value} files`, 'Count']}
+                      contentStyle={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        borderRadius: '4px',
+                        padding: '8px'
+                      }}
+                    />
+                    <Legend 
+                      verticalAlign="bottom" 
+                      height={36}
+                      wrapperStyle={{
+                        paddingTop: '10px',
+                        fontSize: '12px'
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </div>

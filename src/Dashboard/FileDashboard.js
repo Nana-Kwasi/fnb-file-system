@@ -205,6 +205,7 @@
 // };
 
 // export default Dashboard;
+
 import React, { useState, useEffect } from 'react';
 import { BarChart3, Users, FileText, LogOut, Download, CheckSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -536,7 +537,7 @@ const Dashboard = () => {
           <div className="header">
             <div className="header-title">
               <h1>{currentScreen.charAt(0).toUpperCase() + currentScreen.slice(1)}</h1>
-              <p>{formatDate(currentDate)}</p>
+              <p className='time'>{formatDate(currentDate)}</p>
             </div>
           </div>
 
