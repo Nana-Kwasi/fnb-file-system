@@ -206,6 +206,7 @@
 
 // export default Dashboard;
 
+
 import React, { useState, useEffect } from 'react';
 import { BarChart3, Users, FileText, LogOut, Download, CheckSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -241,24 +242,21 @@ const Dashboard = () => {
 
   const getStageNumber = (status) => {
     switch (status) {
-      case INVOICE_STATUS.PENDING: return '0/5';
-      case INVOICE_STATUS.REVIEW_1: return '1/5';
-      case INVOICE_STATUS.REVIEW_2: return '2/5';
-      case INVOICE_STATUS.REVIEW_3: return '3/5';
-      case INVOICE_STATUS.REVIEW_4: return '4/5';
-      case INVOICE_STATUS.REVIEW_5: return '5/5';
-      case INVOICE_STATUS.PAID: return 'Completed';
-      default: return '0/5';
+      case INVOICE_STATUS.PENDING: return '0/4';
+      case INVOICE_STATUS.REVIEW_1: return '1/4';
+      case INVOICE_STATUS.REVIEW_2: return '2/4';
+      case INVOICE_STATUS.REVIEW_3: return '3/4';
+      case INVOICE_STATUS.PAID: return '4/4';
+      default: return '0/4';
     }
   };
 
-  const getNextReviewer = (status) => {
+  const getNextReviewer = (status, amount) => {
     const MOCK_USERS = [
       { role: ROLES.FINANCE_REVIEWER_1, username: 'Quachi' },
       { role: ROLES.FINANCE_REVIEWER_2, username: 'Vanessa' },
       { role: ROLES.FINANCE_REVIEWER_3, username: 'Alex' },
-      { role: ROLES.FINANCE_REVIEWER_4, username: 'BAffour' },
-      { role: ROLES.FINANCE_REVIEWER_5, username: 'Patrick' }
+      { role: ROLES.EXCOBERS_REVIEWER, username: 'John Executive' }
     ];
 
     switch (status) {
@@ -267,13 +265,15 @@ const Dashboard = () => {
       case INVOICE_STATUS.REVIEW_1:
         return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_2)?.username;
       case INVOICE_STATUS.REVIEW_2:
-        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_3)?.username;
+        return parseFloat(amount) > 10000 ? 
+          MOCK_USERS.find(u => u.role === ROLES.EXCOBERS_REVIEWER)?.username :
+          MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_3)?.username;
       case INVOICE_STATUS.REVIEW_3:
-        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_4)?.username;
-      case INVOICE_STATUS.REVIEW_4:
-        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_5)?.username;
+        return 'Payment Processing';
+      case INVOICE_STATUS.PAID:
+        return 'PAID';
       default:
-        return 'Complete';
+        return 'Unknown';
     }
   };
 
@@ -281,7 +281,9 @@ const Dashboard = () => {
     const invoice = invoices.find(inv => inv.id === fileId);
     if (invoice && selectedFiles.has(fileId)) {
       updateInvoiceStatus(fileId, getNextStatus(invoice.status));
-      downloadInvoice(invoice);
+      if (user?.department !== 'EXCOBERS') {
+        downloadInvoice(invoice);
+      }
       setSelectedFiles(new Set());
     }
   };
@@ -295,11 +297,9 @@ const Dashboard = () => {
       case INVOICE_STATUS.REVIEW_2:
         return INVOICE_STATUS.REVIEW_3;
       case INVOICE_STATUS.REVIEW_3:
-        return INVOICE_STATUS.REVIEW_4;
-      case INVOICE_STATUS.REVIEW_4:
-        return INVOICE_STATUS.REVIEW_5;
-      default:
         return INVOICE_STATUS.PAID;
+      default:
+        return currentStatus;
     }
   };
 
@@ -318,34 +318,40 @@ const Dashboard = () => {
     });
   };
 
+  const formatAmount = (amount) => {
+    if (!amount || isNaN(parseFloat(amount))) {
+      return '0.00';
+    }
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'GHC'
+    }).format(parseFloat(amount));
+  };
+
   const getStats = () => {
     return {
       totalFiles: invoices.length,
       averageSize: `${(invoices.reduce((acc, inv) => acc + parseFloat(inv.size), 0) / (invoices.length || 1)).toFixed(1)} KB`,
-      successRate: invoices.filter(i => i.status === INVOICE_STATUS.REVIEW_5 || i.status === INVOICE_STATUS.PAID).length / (invoices.length || 1) * 100
+      successRate: invoices.filter(i => i.status === INVOICE_STATUS.PAID).length / (invoices.length || 1) * 100
     };
   };
 
-  const FinanceTable = () => (
+  const PaymentTable = () => (
+    <div className='table-container'>
+    <div class="table-wrapper">
     <table>
       <thead>
         <tr>
-          <th>File Name</th>
-          <th>Type</th>
+          <th>Action</th>
           <th>Date</th>
           <th>Time</th>
-          <th>Action</th>
-          <th>Approve</th>
-          <th>Download</th>
+          <th>Amount</th>
+          <th>Pay</th>
         </tr>
       </thead>
       <tbody>
         {invoices.map((file) => (
           <tr key={file.id}>
-            <td>{file.name}</td>
-            <td>{file.type}</td>
-            <td>{file.date}</td>
-            <td>{file.time}</td>
             <td>
               {canEditInvoice(file) && (
                 <label className="checkbox-container">
@@ -358,6 +364,126 @@ const Dashboard = () => {
                 </label>
               )}
             </td>
+            <td>{file.date}</td>
+            <td>{file.time}</td>
+            <td>{formatAmount(file.amount)}</td>
+            <td>
+              {canEditInvoice(file) && selectedFiles.has(file.id) && (
+                <button 
+                  className="approve-selected-btn"
+                  onClick={() => handleApproveAndDownload(file.id)}
+                >
+                  Pay
+                </button>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    </div>
+    </div>
+  );
+
+  const FinanceTable = () => {
+    if (user?.role === ROLES.FINANCE_REVIEWER_4) {
+      return <PaymentTable />;
+    }
+
+    return (
+      <div className='table-container'>
+      <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>File Name</th>
+            {/* <th>Type</th> */}
+            <th>Amount</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Action</th>
+            <th>Approve</th>
+            <th>Download</th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoices.map((file) => (
+            <tr key={file.id}>
+              <td>{file.name}</td>
+              {/* <td>{file.type}</td> */}
+              <td>{formatAmount(file.amount)}</td>
+              <td>{file.date}</td>
+              <td>{file.time}</td>
+              <td>
+                {canEditInvoice(file) && (
+                  <label className="checkbox-container">
+                    <input
+                      type="checkbox"
+                      checked={selectedFiles.has(file.id)}
+                      onChange={() => handleFileSelection(file.id)}
+                    />
+                    <CheckSquare className="checkbox-icon" />
+                  </label>
+                )}
+              </td>
+              <td>
+                {canEditInvoice(file) && selectedFiles.has(file.id) && (
+                  <button 
+                    className="approve-selected-btn"
+                    onClick={() => handleApproveAndDownload(file.id)}
+                  >
+                    {file.status === INVOICE_STATUS.REVIEW_3 ? 'Pay' : 'Approve'}
+                  </button>
+                )}
+              </td>
+              <td>
+                {canEditInvoice(file) && (
+                  <button
+                    className="download-btn"
+                    disabled={!selectedFiles.has(file.id)}
+                  >
+                    <Download size={16} />
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      </div>
+      </div>
+    );
+  };
+
+  const ExcobersTable = () => (
+    <table>
+      <thead>
+        <tr>
+          <th>Action</th>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Amount</th>
+          <th>Approve</th>
+        </tr>
+      </thead>
+      <tbody>
+        {invoices.map((file) => (
+          <tr key={file.id}>
+            <td>
+              {canEditInvoice(file) && (
+                <label className="checkbox-container">
+                  <input
+                    type="checkbox"
+                    checked={selectedFiles.has(file.id)}
+                    onChange={() => handleFileSelection(file.id)}
+                  />
+                  <CheckSquare className="checkbox-icon" />
+                </label>
+              )}
+            </td>
+            <td>{file.date}</td>
+            <td>{file.time}</td>
+            <td>{formatAmount(file.amount)}</td>
             <td>
               {canEditInvoice(file) && selectedFiles.has(file.id) && (
                 <button 
@@ -368,16 +494,6 @@ const Dashboard = () => {
                 </button>
               )}
             </td>
-            <td>
-              {canEditInvoice(file) && (
-                <button
-                  className="download-btn"
-                  disabled={!selectedFiles.has(file.id)}
-                >
-                  <Download size={16} />
-                </button>
-              )}
-            </td>
           </tr>
         ))}
       </tbody>
@@ -385,11 +501,14 @@ const Dashboard = () => {
   );
 
   const DepartmentTable = () => (
+    <div className='table-container'>
+    <div class="table-wrapper">
     <table>
       <thead>
         <tr>
           <th>File Name</th>
-          <th>Type</th>
+          {/* <th>Type</th> */}
+          <th>Amount</th>
           <th>Date</th>
           <th>Time</th>
           <th>Status</th>
@@ -400,12 +519,13 @@ const Dashboard = () => {
         {invoices.map((file) => (
           <tr key={file.id}>
             <td>{file.name}</td>
-            <td>{file.type}</td>
+            {/* <td>{file.type}</td> */}
+            <td>{formatAmount(file.amount)}</td>
             <td>{file.date}</td>
             <td>{file.time}</td>
             <td>
               <span className={`status-badge ${file.status.toLowerCase()}`}>
-                {getStageNumber(file.status)} → {getNextReviewer(file.status)}
+                {getStageNumber(file.status)} → {getNextReviewer(file.status, file.amount)}
               </span>
             </td>
             <td>{file.sender === user.email ? 'Me' : file.sender}</td>
@@ -413,6 +533,8 @@ const Dashboard = () => {
         ))}
       </tbody>
     </table>
+    </div>
+    </div>
   );
 
   const DashboardContent = () => {
@@ -446,7 +568,13 @@ const Dashboard = () => {
             )}
           </div>
 
-          {user?.department === 'FINANCE' ? <FinanceTable /> : <DepartmentTable />}
+          {user?.department === 'FINANCE' ? (
+            <FinanceTable />
+          ) : user?.department === 'EXCOBERS' ? (
+            <ExcobersTable />
+          ) : (
+            <DepartmentTable />
+          )}
         </div>
       </>
     );

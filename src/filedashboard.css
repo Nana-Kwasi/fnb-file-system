@@ -19,13 +19,12 @@ table {
   font-size: 14px;
   background-color: #ffffff;
   border-radius: 8px;
-  overflow: hidden;
   box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
-  min-width: 600px;
+  min-width: 100%;
 }
 
 thead {
-  background-color: #fafcfe;
+  background-color: #004080;
   color: white;
   text-transform: uppercase;
 }
@@ -34,6 +33,7 @@ th, td {
   padding: 12px 16px;
   text-align: left;
   border-bottom: 1px solid #ddd;
+  white-space: nowrap; /* Prevent content from wrapping */
 }
 
 th {
@@ -49,6 +49,16 @@ td span {
   border-radius: 4px;
   font-weight: bold;
   text-transform: capitalize;
+}
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  direction: ltr;
+}
+.table-container {
+  overflow-x: hidden;
+  position: relative;
 }
 
 .status-active {
@@ -72,7 +82,7 @@ td span {
 }
 
 .sidebar {
-  width: 256px;
+  width: 170px;
   padding: 2rem;
   border-right: 1px solid #e5e7eb;
 }

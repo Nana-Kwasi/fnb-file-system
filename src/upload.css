@@ -183,7 +183,31 @@
       font-size: 16px;
       padding: 12px 16px;
   }
+  .file-amount-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+  }
   
+  .file-name {
+    min-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .amount-input {
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 150px;
+  }
+  
+  .selected-files-container {
+    margin-top: 1rem;
+    width: 100%;
+  }
   .table-body td {
       padding: 12px 16px;
   }

@@ -5,7 +5,7 @@ export const ROLES = {
   FINANCE_REVIEWER_2: 'FINANCE_REVIEWER_2',
   FINANCE_REVIEWER_3: 'FINANCE_REVIEWER_3',
   FINANCE_REVIEWER_4: 'FINANCE_REVIEWER_4',
-  FINANCE_REVIEWER_5: 'FINANCE_REVIEWER_5',
+  EXCOBERS_REVIEWER: 'EXCOBERS_REVIEWER',
   DEPARTMENT_USER: 'DEPARTMENT_USER',
 };
 
@@ -14,11 +14,11 @@ export const DEPARTMENTS = {
   IT: 'IT',
   HR: 'HR',
   OPERATIONS: 'OPERATIONS',
-  GLOBALMARKET:'GLOBALMARKET',
-  MARKETTING:'MARKETTING',
-  LEGAL:'LEGAL',
-  COMPLIANCE:'COMPLIANCE',
-  
+  GLOBALMARKET: 'GLOBALMARKET',
+  MARKETTING: 'MARKETTING',
+  LEGAL: 'LEGAL',
+  COMPLIANCE: 'COMPLIANCE',
+  EXCOBERS: 'EXCOBERS',
 };
 
 // Mock users for testing
@@ -50,18 +50,34 @@ const MOCK_USERS = [
     {
       email: 'finance4fnb@gmail.com',
       password: 'password',
-      name: 'Finance Reviewer 4',
-      username: 'BAffour',
+      name: 'Finance Payment Officer',
+      username: 'Sarah',
       department: DEPARTMENTS.FINANCE,
       role: ROLES.FINANCE_REVIEWER_4,
     },
     {
-      email: 'finance5fnb@gmail.com',
+      email: 'finance4b@fnb.co.za',
       password: 'password',
-      name: 'Finance Reviewer 5',
-      username: 'Patrick',
+      name: 'Finance Payment Officer',
+      username: 'Michael',
       department: DEPARTMENTS.FINANCE,
-      role: ROLES.FINANCE_REVIEWER_5,
+      role: ROLES.FINANCE_REVIEWER_4,
+    },
+    {
+      email: 'excobers1@fnb.co.za',
+      password: 'password',
+      name: 'Excobers Reviewer',
+      username: 'John Executive',
+      department: DEPARTMENTS.EXCOBERS,
+      role: ROLES.EXCOBERS_REVIEWER,
+    },
+    {
+      email: 'excobers2@fnb.co.za',
+      password: 'password',
+      name: 'Excobers Reviewer',
+      username: 'Jane Executive',
+      department: DEPARTMENTS.EXCOBERS,
+      role: ROLES.EXCOBERS_REVIEWER,
     },
     {
       email: 'samueltetteh@fnb.co.za',
@@ -120,8 +136,6 @@ const MOCK_USERS = [
       role: ROLES.DEPARTMENT_USER,
     },
   ];
-  
-
 
 const AuthContext = createContext(null);
 
@@ -156,6 +170,7 @@ export const AuthProvider = ({ children }) => {
     }
     return false;
   };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem('user');
@@ -163,7 +178,6 @@ export const AuthProvider = ({ children }) => {
     sessionStorage.removeItem('token');
   };
 
-  // Don't render children until initial auth check is complete
   if (loading) {
     return <div>Loading...</div>;
   }

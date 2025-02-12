@@ -8,8 +8,17 @@ import '../upload.css';
 const Upload = () => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [fileFilter, setFileFilter] = useState('all');
+  const [fileAmounts, setFileAmounts] = useState({});
   const { addMultipleInvoices, invoices } = useInvoices();
   const { user } = useAuth();
+
+  const truncateFileName = (fileName, maxLength = 20) => {
+    if (fileName.length <= maxLength) return fileName;
+    const extension = fileName.split('.').pop();
+    const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+    const truncatedName = nameWithoutExt.substring(0, maxLength - extension.length - 3);
+    return `${truncatedName}...${extension}`;
+  };
 
   const handleFileSelect = (event) => {
     const files = Array.from(event.target.files);
@@ -22,12 +31,25 @@ const Upload = () => {
       return;
     }
     setSelectedFiles(files);
+    const initialAmounts = files.reduce((acc, file) => {
+      acc[file.name] = '';
+      return acc;
+    }, {});
+    setFileAmounts(initialAmounts);
+  };
+
+  const handleAmountChange = (fileName, value) => {
+    setFileAmounts(prev => ({
+      ...prev,
+      [fileName]: value
+    }));
   };
 
   const handleSubmit = async () => {
     if (selectedFiles.length > 0) {
-      await addMultipleInvoices(selectedFiles, 0);
+      await addMultipleInvoices(selectedFiles, fileAmounts);
       setSelectedFiles([]);
+      setFileAmounts({});
     }
   };
 
@@ -77,14 +99,23 @@ const Upload = () => {
             Choose Files
           </label>
           {selectedFiles.length > 0 && (
-            <>
-              <div className="selected-files">
-                <span className="file-count">{selectedFiles.length} files selected</span>
-              </div>
+            <div className="selected-files-container">
+              {selectedFiles.map((file, index) => (
+                <div key={index} className="file-amount-row">
+                  <span className="file-name">{truncateFileName(file.name)}</span>
+                  <input
+                    type="number"
+                    placeholder="Enter amount"
+                    value={fileAmounts[file.name] || ''}
+                    onChange={(e) => handleAmountChange(file.name, e.target.value)}
+                    className="amount-input"
+                  />
+                </div>
+              ))}
               <button onClick={handleSubmit} className="submit-button">
                 Upload
               </button>
-            </>
+            </div>
           )}
         </div>
 

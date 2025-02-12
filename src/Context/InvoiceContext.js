@@ -8,8 +8,6 @@ export const INVOICE_STATUS = {
   REVIEW_1: 'First Approve',
   REVIEW_2: 'Second Approve',
   REVIEW_3: 'Third Approve',
-  REVIEW_4: 'Fourth Approve',
-  REVIEW_5: 'Fifth Approve',
   PAID: 'Paid',
 };
 
@@ -26,7 +24,7 @@ export const InvoiceProvider = ({ children }) => {
 
   const addInvoice = async (file, amount) => {
     if (!user) return null;
-
+  
     return new Promise((resolve) => {
       const newInvoice = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -35,7 +33,7 @@ export const InvoiceProvider = ({ children }) => {
         date: new Date().toISOString().split('T')[0],
         time: new Date().toLocaleTimeString(),
         status: INVOICE_STATUS.PENDING,
-        number: amount,
+        amount: amount ? parseFloat(amount) : 0,
         sender: user.email,
         department: user.department,
         uploadedBy: user.email,
@@ -43,7 +41,7 @@ export const InvoiceProvider = ({ children }) => {
         lastModified: file.lastModified,
         content: null
       };
-
+  
       const reader = new FileReader();
       reader.onload = (e) => {
         const updatedInvoice = { ...newInvoice, content: e.target.result };
@@ -58,9 +56,9 @@ export const InvoiceProvider = ({ children }) => {
     });
   };
 
-  const addMultipleInvoices = async (files, amount) => {
+  const addMultipleInvoices = async (files, amounts) => {
     if (!user) return null;
-    return Promise.all(files.map(file => addInvoice(file, amount)));
+    return Promise.all(files.map(file => addInvoice(file, amounts[file.name])));
   };
 
   const updateInvoiceStatus = (invoiceId, newStatus) => {
@@ -81,14 +79,20 @@ export const InvoiceProvider = ({ children }) => {
         case 'FINANCE_REVIEWER_2':
           return invoices.filter(i => i.status === INVOICE_STATUS.REVIEW_1);
         case 'FINANCE_REVIEWER_3':
-          return invoices.filter(i => i.status === INVOICE_STATUS.REVIEW_2);
+          return invoices.filter(i => 
+            i.status === INVOICE_STATUS.REVIEW_2 && 
+            i.amount <= 10000
+          );
         case 'FINANCE_REVIEWER_4':
           return invoices.filter(i => i.status === INVOICE_STATUS.REVIEW_3);
-        case 'FINANCE_REVIEWER_5':
-          return invoices.filter(i => i.status === INVOICE_STATUS.REVIEW_4);
         default:
           return [];
       }
+    } else if (user.department === 'EXCOBERS') {
+      return invoices.filter(i => 
+        i.status === INVOICE_STATUS.REVIEW_2 && 
+        i.amount > 10000
+      );
     } else {
       return invoices.filter(i => i.department === user.department);
     }
@@ -104,14 +108,14 @@ export const InvoiceProvider = ({ children }) => {
         case 'FINANCE_REVIEWER_2':
           return invoice.status === INVOICE_STATUS.REVIEW_1;
         case 'FINANCE_REVIEWER_3':
-          return invoice.status === INVOICE_STATUS.REVIEW_2;
+          return invoice.status === INVOICE_STATUS.REVIEW_2 && invoice.amount <= 10000;
         case 'FINANCE_REVIEWER_4':
           return invoice.status === INVOICE_STATUS.REVIEW_3;
-        case 'FINANCE_REVIEWER_5':
-          return invoice.status === INVOICE_STATUS.REVIEW_4;
         default:
           return false;
       }
+    } else if (user.department === 'EXCOBERS') {
+      return invoice.status === INVOICE_STATUS.REVIEW_2 && invoice.amount > 10000;
     }
     return false;
   };
