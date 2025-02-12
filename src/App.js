@@ -9,6 +9,7 @@ import Statistics from './Statistics/Statistics';
 import Reports from './Report/Report';
 import Upload from './Upload/Upload';
 import DashboardCharts from './Dashboardchart/Dashboardchart';
+import FileStatusCircles from './File/FileStatus';
 const App = () => {
   return (
     <AuthProvider>
@@ -21,6 +22,8 @@ const App = () => {
             <Route path="/Statistics" element={<Statistics />} />
             <Route path="/Upload" element={<Upload />} />
             <Route path="/DashboardCharts" element={<DashboardCharts />} />
+            <Route path="/FileStatus" element={<FileStatusCircles />} />
+
           </Routes>
         </Router>
       </InvoiceProvider>

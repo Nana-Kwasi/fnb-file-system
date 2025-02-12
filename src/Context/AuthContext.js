@@ -112,6 +112,14 @@ const MOCK_USERS = [
       role: ROLES.DEPARTMENT_USER,
     },
     {
+      email: 'operations1fnb@gmail.com',
+      password: 'password',
+      name: 'Operations',
+      username: 'Nii',
+      department: DEPARTMENTS.OPERATIONS,
+      role: ROLES.DEPARTMENT_USER,
+    },
+    {
       email: 'legal@gmail.com',
       password: 'password',
       name: 'Legal',

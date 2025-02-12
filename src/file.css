@@ -1,0 +1,80 @@
+.file-status-container {
+    width: 100%;
+    padding: 24px 16px;
+    margin-bottom: 32px;
+  }
+  
+  .circles-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  
+  .circle-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .status-circle {
+    width: 128px;
+    height: 128px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .circle-count {
+    font-size: 2rem;
+    font-weight: bold;
+  }
+  
+  .circle-label {
+    margin-top: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+  }
+  
+  .circle-percentage {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #6B7280;
+  }
+  
+  /* Circle Background Colors */
+  .status-circle.paid {
+    background-color: #DEF7EC;
+  }
+  
+  .status-circle.first-stage {
+    background-color: #E1EFFE;
+  }
+  
+  .status-circle.second-stage {
+    background-color: #FEF3C7;
+  }
+  
+  .status-circle.third-stage {
+    background-color: #F3E8FF;
+  }
+  
+  /* Circle Text Colors */
+  .circle-count.paid {
+    color: #047857;
+  }
+  
+  .circle-count.first-stage {
+    color: #1D4ED8;
+  }
+  
+  .circle-count.second-stage {
+    color: #B45309;
+  }
+  
+  .circle-count.third-stage {
+    color: #7C3AED;
+  }

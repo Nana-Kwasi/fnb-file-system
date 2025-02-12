@@ -216,6 +216,7 @@ import Reports from '../Report/Report';
 import { useAuth } from '../Context/AuthContext';
 import { useInvoices } from '../Context/InvoiceContext';
 import "../filedashboard.css";
+import FileStatusCircles from '../File/FileStatus';
 
 const Dashboard = () => {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
@@ -281,9 +282,18 @@ const Dashboard = () => {
     const invoice = invoices.find(inv => inv.id === fileId);
     if (invoice && selectedFiles.has(fileId)) {
       updateInvoiceStatus(fileId, getNextStatus(invoice.status));
-      if (user?.department !== 'EXCOBERS') {
+      
+      if (invoice.status === INVOICE_STATUS.PENDING) {
+        // For first stage, automatically download
         downloadInvoice(invoice);
+      } else if (invoice.status === INVOICE_STATUS.REVIEW_1 || invoice.status === INVOICE_STATUS.REVIEW_2) {
+        // For second and third stage, ask if they want to download
+        const wantToDownload = window.confirm("Would you like to download this invoice?");
+        if (wantToDownload) {
+          downloadInvoice(invoice);
+        }
       }
+      
       setSelectedFiles(new Set());
     }
   };
@@ -389,124 +399,153 @@ const Dashboard = () => {
     if (user?.role === ROLES.FINANCE_REVIEWER_4) {
       return <PaymentTable />;
     }
-
+  
+    const groupedInvoices = invoices.reduce((acc, invoice) => {
+      if (!acc[invoice.department]) {
+        acc[invoice.department] = [];
+      }
+      acc[invoice.department].push(invoice);
+      return acc;
+    }, {});
+  
     return (
-      <div className='table-container'>
-      <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>File Name</th>
-            {/* <th>Type</th> */}
-            <th>Amount</th>
-            <th>Date</th>
-            <th>Time</th>
-            <th>Action</th>
-            <th>Approve</th>
-            <th>Download</th>
-          </tr>
-        </thead>
-        <tbody>
-          {invoices.map((file) => (
-            <tr key={file.id}>
-              <td>{file.name}</td>
-              {/* <td>{file.type}</td> */}
-              <td>{formatAmount(file.amount)}</td>
-              <td>{file.date}</td>
-              <td>{file.time}</td>
-              <td>
-                {canEditInvoice(file) && (
-                  <label className="checkbox-container">
-                    <input
-                      type="checkbox"
-                      checked={selectedFiles.has(file.id)}
-                      onChange={() => handleFileSelection(file.id)}
-                    />
-                    <CheckSquare className="checkbox-icon" />
-                  </label>
-                )}
-              </td>
-              <td>
-                {canEditInvoice(file) && selectedFiles.has(file.id) && (
-                  <button 
-                    className="approve-selected-btn"
-                    onClick={() => handleApproveAndDownload(file.id)}
-                  >
-                    {file.status === INVOICE_STATUS.REVIEW_3 ? 'Pay' : 'Approve'}
-                  </button>
-                )}
-              </td>
-              <td>
-                {canEditInvoice(file) && (
-                  <button
-                    className="download-btn"
-                    disabled={!selectedFiles.has(file.id)}
-                  >
-                    <Download size={16} />
-                  </button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      </div>
+      <div className="table-container">
+        {Object.entries(groupedInvoices).map(([department, departmentInvoices]) => (
+          <div key={department} className="department-section">
+            <h3 className="department-header">{department}</h3>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>File</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Action</th>
+                    <th>Approve</th>
+                    <th>Download</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {departmentInvoices.map((file) => (
+                    <tr key={file.id}>
+                      <td>{file.name}</td>
+                      <td>{formatAmount(file.amount)}</td>
+                      <td>{file.date}</td>
+                      <td>{file.time}</td>
+                      <td>
+                        {canEditInvoice(file) && (
+                          <label className="checkbox-container">
+                            <input
+                              type="checkbox"
+                              checked={selectedFiles.has(file.id)}
+                              onChange={() => handleFileSelection(file.id)}
+                            />
+                            <CheckSquare className="checkbox-icon" />
+                          </label>
+                        )}
+                      </td>
+                      <td>
+                        {canEditInvoice(file) && selectedFiles.has(file.id) && (
+                          <button 
+                            className="approve-selected-btn"
+                            onClick={() => handleApproveAndDownload(file.id)}
+                          >
+                            {file.status === INVOICE_STATUS.REVIEW_3 ? 'Pay' : 'Approve'}
+                          </button>
+                        )}
+                      </td>
+                      <td>
+                        {canEditInvoice(file) && (
+                          <button
+                            className="download-btn"
+                            disabled={!selectedFiles.has(file.id)}
+                          >
+                            <Download size={16} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
       </div>
     );
   };
-
-  const ExcobersTable = () => (
-    <table>
-      <thead>
-        <tr>
-          <th>Action</th>
-          <th>Date</th>
-          <th>Time</th>
-          <th>Amount</th>
-          <th>Approve</th>
-        </tr>
-      </thead>
-      <tbody>
-        {invoices.map((file) => (
-          <tr key={file.id}>
-            <td>
-              {canEditInvoice(file) && (
-                <label className="checkbox-container">
-                  <input
-                    type="checkbox"
-                    checked={selectedFiles.has(file.id)}
-                    onChange={() => handleFileSelection(file.id)}
-                  />
-                  <CheckSquare className="checkbox-icon" />
-                </label>
-              )}
-            </td>
-            <td>{file.date}</td>
-            <td>{file.time}</td>
-            <td>{formatAmount(file.amount)}</td>
-            <td>
-              {canEditInvoice(file) && selectedFiles.has(file.id) && (
-                <button 
-                  className="approve-selected-btn"
-                  onClick={() => handleApproveAndDownload(file.id)}
-                >
-                  Approve
-                </button>
-              )}
-            </td>
-          </tr>
+  
+  const ExcobersTable = () => {
+    const groupedInvoices = invoices.reduce((acc, invoice) => {
+      if (!acc[invoice.department]) {
+        acc[invoice.department] = [];
+      }
+      acc[invoice.department].push(invoice);
+      return acc;
+    }, {});
+  
+    return (
+      <div className="table-container">
+        {Object.entries(groupedInvoices).map(([department, departmentInvoices]) => (
+          <div key={department} className="department-section">
+            <h3 className="department-header">{department}</h3>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Action</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Amount</th>
+                    <th>Approve</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {departmentInvoices.map((file) => (
+                    <tr key={file.id}>
+                      <td>
+                        {canEditInvoice(file) && (
+                          <label className="checkbox-container">
+                            <input
+                              type="checkbox"
+                              checked={selectedFiles.has(file.id)}
+                              onChange={() => handleFileSelection(file.id)}
+                            />
+                            <CheckSquare className="checkbox-icon" />
+                          </label>
+                        )}
+                      </td>
+                      <td>{file.date}</td>
+                      <td>{file.time}</td>
+                      <td>{formatAmount(file.amount)}</td>
+                      <td>
+                        {canEditInvoice(file) && selectedFiles.has(file.id) && (
+                          <button 
+                            className="approve-selected-btn"
+                            onClick={() => handleApproveAndDownload(file.id)}
+                          >
+                            Approve
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ))}
-      </tbody>
-    </table>
-  );
-
+      </div>
+    );
+  };
   const DepartmentTable = () => (
     <div className='table-container'>
     <div class="table-wrapper">
     <table>
       <thead>
         <tr>
-          <th>File Name</th>
+          <th>File</th>
           {/* <th>Type</th> */}
           <th>Amount</th>
           <th>Date</th>
@@ -559,10 +598,11 @@ const Dashboard = () => {
             <p>Files reaching PAID status</p>
           </div>
         </div>
+        <FileStatusCircles invoices={invoices} INVOICE_STATUS={INVOICE_STATUS} />
 
         <div className="top-store">
           <div className="section-header">
-            <h2>Files For Review</h2>
+            {/* <h2 style={{color:'green'}}>Files For Review</h2> */}
             {user?.department === 'FINANCE' && (
               <span>Finance Review Level: {user?.role.split('_')[2]}</span>
             )}
