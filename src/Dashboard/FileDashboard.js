@@ -213,6 +213,7 @@ import { useNavigate } from 'react-router-dom';
 import Statistics from '../Statistics/Statistics';
 import Upload from '../Upload/Upload';
 import Reports from '../Report/Report';
+import POScreen from '../POScreen/POScreen';
 import { useAuth } from '../Context/AuthContext';
 import { useInvoices } from '../Context/InvoiceContext';
 import "../filedashboard.css";
@@ -252,23 +253,46 @@ const Dashboard = () => {
     }
   };
 
-  const getNextReviewer = (status, amount) => {
+  // const getNextReviewer = (status, amount) => {
+  //   const MOCK_USERS = [
+  //     { role: ROLES.FINANCE_REVIEWER_1, username: 'Quachi' },
+  //     { role: ROLES.FINANCE_REVIEWER_2, username: 'Vanessa' },
+  //     { role: ROLES.FINANCE_REVIEWER_3, username: 'Alex' },
+  //     { role: ROLES.EXCOBERS_REVIEWER, username: 'John Executive' }
+  //   ];
+
+  //   switch (status) {
+  //     case INVOICE_STATUS.PENDING:
+  //       return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_1)?.username;
+  //     case INVOICE_STATUS.REVIEW_1:
+  //       return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_2)?.username;
+  //     case INVOICE_STATUS.REVIEW_2:
+  //       return parseFloat(amount) > 10000 ? 
+  //         MOCK_USERS.find(u => u.role === ROLES.EXCOBERS_REVIEWER)?.username :
+  //         MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_3)?.username;
+  //     case INVOICE_STATUS.REVIEW_3:
+  //       return 'Payment Processing';
+  //     case INVOICE_STATUS.PAID:
+  //       return 'PAID';
+  //     default:
+  //       return 'Unknown';
+  //   }
+  // };
+  const getNextReviewer = (status) => {
     const MOCK_USERS = [
       { role: ROLES.FINANCE_REVIEWER_1, username: 'Quachi' },
       { role: ROLES.FINANCE_REVIEWER_2, username: 'Vanessa' },
       { role: ROLES.FINANCE_REVIEWER_3, username: 'Alex' },
-      { role: ROLES.EXCOBERS_REVIEWER, username: 'John Executive' }
+      { role: ROLES.FINANCE_REVIEWER_4, username: 'Michael' }
     ];
-
+  
     switch (status) {
       case INVOICE_STATUS.PENDING:
         return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_1)?.username;
       case INVOICE_STATUS.REVIEW_1:
         return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_2)?.username;
       case INVOICE_STATUS.REVIEW_2:
-        return parseFloat(amount) > 10000 ? 
-          MOCK_USERS.find(u => u.role === ROLES.EXCOBERS_REVIEWER)?.username :
-          MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_3)?.username;
+        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_3)?.username;
       case INVOICE_STATUS.REVIEW_3:
         return 'Payment Processing';
       case INVOICE_STATUS.PAID:
@@ -277,17 +301,16 @@ const Dashboard = () => {
         return 'Unknown';
     }
   };
-
+  
   const handleApproveAndDownload = (fileId) => {
     const invoice = invoices.find(inv => inv.id === fileId);
     if (invoice && selectedFiles.has(fileId)) {
       updateInvoiceStatus(fileId, getNextStatus(invoice.status));
       
       if (invoice.status === INVOICE_STATUS.PENDING) {
-        // For first stage, automatically download
+        
         downloadInvoice(invoice);
       } else if (invoice.status === INVOICE_STATUS.REVIEW_1 || invoice.status === INVOICE_STATUS.REVIEW_2) {
-        // For second and third stage, ask if they want to download
         const wantToDownload = window.confirm("Would you like to download this invoice?");
         if (wantToDownload) {
           downloadInvoice(invoice);
@@ -645,12 +668,34 @@ const Dashboard = () => {
         icon: <FileText size={20} />,
         label: 'Reports',
         visible: true
+      },
+      {
+        id: 'POScreen',
+        icon: <FileText size={20} />,
+        label: 'POS',
+        visible: true
       }
     ];
 
     return items.filter(item => item.visible);
   };
 
+  // const renderScreen = () => {
+  //   switch(currentScreen) {
+  //     case 'dashboard':
+  //       return <DashboardContent />;
+  //     case 'statistics':
+  //       return <Statistics />;
+  //     case 'Upload':
+  //       return user?.role === 'DEPARTMENT_USER' ? <Upload /> : null;
+  //     case 'reports':
+  //       return <Reports />;
+  //       case 'POScreen':
+  //         return <POScreen />;
+  //     default:
+  //       return <DashboardContent />;
+  //   }
+  // };
   const renderScreen = () => {
     switch(currentScreen) {
       case 'dashboard':
@@ -661,11 +706,12 @@ const Dashboard = () => {
         return user?.role === 'DEPARTMENT_USER' ? <Upload /> : null;
       case 'reports':
         return <Reports />;
+      case 'POScreen':
+        return <POScreen />;
       default:
         return <DashboardContent />;
     }
   };
-
   return (
     <div className="dashboard-container">
       <div className="dashboard-wrapper">

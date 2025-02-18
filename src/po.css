@@ -1,0 +1,170 @@
+.po-screen {
+    padding: 20px;
+  }
+  
+  .section-header {
+    margin-bottom: 20px;
+  }
+  
+  .section-header h2 {
+    color: #333;
+    margin-bottom: 10px;
+  }
+  
+  .table-container {
+    margin-bottom: 30px;
+  }
+  
+  .department-header {
+    padding: 10px;
+    background-color: #f5f5f5;
+    font-weight: bold;
+  }
+  
+  .table-wrapper {
+    overflow-x: auto;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  th, td {
+    padding: 10px;
+    border: 1px solid #ddd;
+    text-align: left;
+  }
+  
+  th {
+    background-color: #f5f5f5;
+  }
+  
+  .download-btn, 
+  .upload-btn {
+    padding: 5px 10px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    cursor: pointer;
+  }
+  
+  .download-btn:disabled,
+  .upload-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .status-badge {
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+  
+  .status-badge.pending {
+    background-color: #fff3cd;
+  }
+  
+  .status-badge.signed {
+    background-color: #d4edda;
+  }
+  .file-input {
+    display: none;
+  }
+  
+  .file-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 8px 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  
+  .selected-files-container {
+    margin-top: 8px;
+  }
+  
+  .file-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .submit-button {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .upload-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .file-name {
+    font-size: 14px;
+    color: #666;
+  }
+  
+  .table-container {
+    margin-top: 20px;
+  }
+  
+  .table-wrapper {
+    overflow-x: auto;
+  }
+  
+  .department-header {
+    margin: 20px 0 10px;
+  }
+  
+  .status-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  
+  .status-badge.approved {
+    background-color: #4CAF50;
+    color: white;
+  }
+  
+  .status-badge.pending {
+    background-color: #FFC107;
+    color: black;
+  }
+  
+  .download-btn, .approve-btn {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background-color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .approve-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+  
+  .section-header {
+    margin-bottom: 20px;
+  }

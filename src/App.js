@@ -10,6 +10,12 @@ import Reports from './Report/Report';
 import Upload from './Upload/Upload';
 import DashboardCharts from './Dashboardchart/Dashboardchart';
 import FileStatusCircles from './File/FileStatus';
+import PurchaseForm from './PurchaseForm/PurchaseForm';
+import POScreen from './POScreen/POScreen';
+
+
+
+
 const App = () => {
   return (
     <AuthProvider>
@@ -23,6 +29,10 @@ const App = () => {
             <Route path="/Upload" element={<Upload />} />
             <Route path="/DashboardCharts" element={<DashboardCharts />} />
             <Route path="/FileStatus" element={<FileStatusCircles />} />
+            <Route path="/PurchaseForm" element={<PurchaseForm />} />
+            <Route path="/POScreen" element={<POScreen />} />
+
+
 
           </Routes>
         </Router>

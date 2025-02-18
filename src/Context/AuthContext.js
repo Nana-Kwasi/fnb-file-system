@@ -48,14 +48,6 @@ const MOCK_USERS = [
       role: ROLES.FINANCE_REVIEWER_3,
     },
     {
-      email: 'finance4fnb@gmail.com',
-      password: 'password',
-      name: 'Finance Payment Officer',
-      username: 'Sarah',
-      department: DEPARTMENTS.FINANCE,
-      role: ROLES.FINANCE_REVIEWER_4,
-    },
-    {
       email: 'finance4b@fnb.co.za',
       password: 'password',
       name: 'Finance Payment Officer',

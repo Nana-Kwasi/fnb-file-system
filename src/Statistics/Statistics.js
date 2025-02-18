@@ -12,15 +12,13 @@ import {
 import "../stats.css"
 
 const Statistics = () => {
-  const { invoices, INVOICE_STATUS } = useInvoices();
+  const { invoices, poFiles, INVOICE_STATUS, PO_STATUS } = useInvoices();
   const { user } = useAuth();
 
-  // Add error checking for invoices
-  if (!invoices || !Array.isArray(invoices)) {
+  if (!invoices || !Array.isArray(invoices) || !poFiles || !Array.isArray(poFiles)) {
     return <div className="statistics-page">Loading...</div>;
   }
 
-  // Process data for pie charts with safe checks
   const getFifthStageFiles = () => invoices.filter(inv => inv?.status === INVOICE_STATUS.REVIEW_5);
   const getPendingFiles = () => invoices.filter(inv => inv?.status === INVOICE_STATUS.PENDING);
   const getFirstStageFiles = () => invoices.filter(inv => inv?.status === INVOICE_STATUS.REVIEW_1);
@@ -32,7 +30,14 @@ const Statistics = () => {
     inv?.department === user?.department && inv?.uploadedBy !== user?.email
   );
 
-  // Prepare data for pie charts with actual counts
+  const getPendingPOs = () => poFiles.filter(po => po?.status === PO_STATUS.PENDING);
+  const getApprovedPOs = () => poFiles.filter(po => po?.status === PO_STATUS.APPROVED);
+  const getSignedPOs = () => poFiles.filter(po => po?.status === PO_STATUS.SIGNED);
+  const getUserPOs = () => poFiles.filter(po => po?.uploadedBy === user?.email);
+  const getDepartmentPOs = () => poFiles.filter(po => 
+    po?.department === user?.department && po?.uploadedBy !== user?.email
+  );
+
   const pieData = [
     {
       title: "Fifth Stage Files",
@@ -51,39 +56,60 @@ const Statistics = () => {
     {
       title: "Review Stages",
       data: [
-        { name: "First Approve", value: getFirstStageFiles().length || 0, color: "#3B82F6" },  // Blue
-        { name: "Second Approve", value: getSecondStageFiles().length || 0, color: "#10B981" }, // Green
-        { name: "Third Approve", value: getThirdStageFiles().length || 0, color: "#F59E0B" },  // Orange
-        { name: "Fourth Approve", value: getFourthStageFiles().length || 0, color: "#EF4444" }  // Red
+        { name: "First Approve", value: getFirstStageFiles().length || 0, color: "#3B82F6" },
+        { name: "Second Approve", value: getSecondStageFiles().length || 0, color: "#10B981" },
+        { name: "Third Approve", value: getThirdStageFiles().length || 0, color: "#F59E0B" },
+        { name: "Fourth Approve", value: getFourthStageFiles().length || 0, color: "#EF4444" }
       ]
     },
     {
-      title: "My Uploads",
+      title: "My Uploads (Invoices)",
       data: [
         { name: "My Files", value: getUserFiles().length || 0, color: "#9C27B0" },
         { name: "Other", value: Math.max(0, invoices.length - (getUserFiles().length || 0)), color: "#E0E0E0" }
       ]
     },
     {
-      title: "Department Files",
+      title: "Department Files (Invoices)",
       data: [
         { name: "Department Files", value: getDepartmentFiles().length || 0, color: "#FF5722" },
         { name: "Other", value: Math.max(0, invoices.length - (getDepartmentFiles().length || 0)), color: "#E0E0E0" }
       ]
+    },
+    {
+      title: "PO Status Distribution",
+      data: [
+        { name: "Pending", value: getPendingPOs().length || 0, color: "#FFC107" },
+        { name: "Approved", value: getApprovedPOs().length || 0, color: "#4CAF50" },
+        { name: "Signed", value: getSignedPOs().length || 0, color: "#2196F3" }
+      ]
+    },
+    {
+      title: "My PO Files",
+      data: [
+        { name: "My POs", value: getUserPOs().length || 0, color: "#673AB7" },
+        { name: "Other", value: Math.max(0, poFiles.length - (getUserPOs().length || 0)), color: "#E0E0E0" }
+      ]
+    },
+    {
+      title: "Department PO Files",
+      data: [
+        { name: "Department POs", value: getDepartmentPOs().length || 0, color: "#795548" },
+        { name: "Other", value: Math.max(0, poFiles.length - (getDepartmentPOs().length || 0)), color: "#E0E0E0" }
+      ]
     }
   ];
 
-  // Filter out charts with no data
   const chartsWithData = pieData.filter(chart => 
     chart.data.some(item => item.value > 0)
   );
+
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, value, name }) => {
     const RADIAN = Math.PI / 180;
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
     
-    // Only show label if the segment is large enough (more than 5%)
     if (percent < 0.05) return null;
     
     return (

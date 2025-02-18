@@ -15,15 +15,14 @@ import { FileText, FileSpreadsheet } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import "../Report.css"
 
 const Reports = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [showReport, setShowReport] = useState(false);
   
-  const { invoices, INVOICE_STATUS } = useInvoices();
-  const { user, ROLES } = useAuth();
+  const { invoices, poFiles, INVOICE_STATUS, PO_STATUS } = useInvoices();
+  const { user } = useAuth();
 
   const generateReport = () => {
     if (!startDate || !endDate) {
@@ -32,23 +31,75 @@ const Reports = () => {
     }
     setShowReport(true);
   };
-
-  const getFilteredData = () => {
+  const getFilteredInvoices = () => {
     return invoices.filter(invoice => {
       const invoiceDate = new Date(invoice.date);
       return invoiceDate >= new Date(startDate) && invoiceDate <= new Date(endDate);
     });
   };
 
+  const getFilteredPOs = () => {
+    return poFiles.filter(po => {
+      const poDate = new Date(po.date);
+      return poDate >= new Date(startDate) && poDate <= new Date(endDate);
+    });
+  };
+
+   const getFinanceApprovedInvoices = () => {
+    const filteredInvoices = getFilteredInvoices();
+    const role = user.role;
+    
+    // Map roles to the corresponding status they approve to
+    const roleApprovedStatusMap = {
+      'FINANCE_REVIEWER_1': INVOICE_STATUS.REVIEW_1,
+      'FINANCE_REVIEWER_2': INVOICE_STATUS.REVIEW_2,
+      'FINANCE_REVIEWER_3': INVOICE_STATUS.REVIEW_3,
+      'FINANCE_REVIEWER_4': INVOICE_STATUS.PAID
+    };
+  
+    const approvedStatus = roleApprovedStatusMap[role];
+    
+    if (!approvedStatus) {
+      return [];
+    }
+  
+    // Return invoices that match either:
+    // 1. The exact status this reviewer approves to
+    // 2. Any status after this reviewer's approval stage
+    return filteredInvoices.filter(invoice => {
+      const statusValues = Object.values(INVOICE_STATUS);
+      const approvedStatusIndex = statusValues.indexOf(approvedStatus);
+      const currentStatusIndex = statusValues.indexOf(invoice.status);
+      
+      return currentStatusIndex >= approvedStatusIndex;
+    });
+  };
+
+  const getFinanceApprovedPOs = () => {
+    const filteredPOs = getFilteredPOs();
+    return filteredPOs.filter(po => po.status === PO_STATUS.APPROVED);
+  };
+
   const getChartData = () => {
-    const filteredData = getFilteredData();
+    const filteredInvoices = user.department === 'FINANCE' ? 
+      getFinanceApprovedInvoices() : getFilteredInvoices();
+    const filteredPOs = user.department === 'FINANCE' ? 
+      getFinanceApprovedPOs() : getFilteredPOs();
+    
     const dailyData = {};
 
-    filteredData.forEach(invoice => {
+    filteredInvoices.forEach(invoice => {
       if (!dailyData[invoice.date]) {
-        dailyData[invoice.date] = { date: invoice.date, total: 0 };
+        dailyData[invoice.date] = { date: invoice.date, invoices: 0, pos: 0 };
       }
-      dailyData[invoice.date].total += 1;
+      dailyData[invoice.date].invoices += 1;
+    });
+
+    filteredPOs.forEach(po => {
+      if (!dailyData[po.date]) {
+        dailyData[po.date] = { date: po.date, invoices: 0, pos: 0 };
+      }
+      dailyData[po.date].pos += 1;
     });
 
     return Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -69,37 +120,42 @@ const Reports = () => {
 
   const getNextReviewer = (status) => {
     const MOCK_USERS = [
-      { role: ROLES.FINANCE_REVIEWER_1, username: 'Quachi' },
-      { role: ROLES.FINANCE_REVIEWER_2, username: 'Vanessa' },
-      { role: ROLES.FINANCE_REVIEWER_3, username: 'Alex' },
-      { role: ROLES.FINANCE_REVIEWER_4, username: 'BAffour' },
-      { role: ROLES.FINANCE_REVIEWER_5, username: 'Patrick' }
+      { role: 'FINANCE_REVIEWER_1', username: 'Quachi' },
+      { role: 'FINANCE_REVIEWER_2', username: 'Vanessa' },
+      { role: 'FINANCE_REVIEWER_3', username: 'Alex' },
+      { role: 'FINANCE_REVIEWER_4', username: 'BAffour' },
+      { role: 'FINANCE_REVIEWER_5', username: 'Patrick' }
     ];
 
     switch (status) {
       case INVOICE_STATUS.PENDING:
-        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_1)?.username;
+        return MOCK_USERS.find(u => u.role === 'FINANCE_REVIEWER_1')?.username;
       case INVOICE_STATUS.REVIEW_1:
-        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_2)?.username;
+        return MOCK_USERS.find(u => u.role === 'FINANCE_REVIEWER_2')?.username;
       case INVOICE_STATUS.REVIEW_2:
-        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_3)?.username;
+        return MOCK_USERS.find(u => u.role === 'FINANCE_REVIEWER_3')?.username;
       case INVOICE_STATUS.REVIEW_3:
-        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_4)?.username;
+        return MOCK_USERS.find(u => u.role === 'FINANCE_REVIEWER_4')?.username;
       case INVOICE_STATUS.REVIEW_4:
-        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_5)?.username;
+        return MOCK_USERS.find(u => u.role === 'FINANCE_REVIEWER_5')?.username;
       default:
         return 'Complete';
     }
   };
 
-  const formatStatus = (status) => {
-    const stageNumber = getStageNumber(status);
-    const nextReviewer = getNextReviewer(status);
-    return `${stageNumber} (${nextReviewer})`;
+  const formatStatus = (status, type) => {
+    if (type === 'invoice') {
+      const stageNumber = getStageNumber(status);
+      const nextReviewer = getNextReviewer(status);
+      return `${stageNumber} (${nextReviewer})`;
+    }
+    return status;
   };
+
   const exportToPDF = () => {
     const doc = new jsPDF('landscape', 'mm', 'a4');
-    const filteredData = getFilteredData();
+    const filteredInvoices = user.department === 'FINANCE' ? getFinanceApprovedInvoices() : getFilteredInvoices();
+    const filteredPOs = user.department === 'FINANCE' ? getFinanceApprovedPOs() : getFilteredPOs();
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
     const margin = 15;
@@ -110,7 +166,7 @@ const Reports = () => {
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(20);
-      doc.text('Invoice Report', margin, 16);
+      doc.text('Document Report', margin, 16);
     };
 
     const addMetadata = () => {
@@ -132,157 +188,195 @@ const Reports = () => {
       doc.text(`Date Range: ${startDate} to ${endDate}`, leftColX, currentY);
       
       currentY += lineSpacing;
-      doc.text(`Total Invoices: ${filteredData.length}`, leftColX, currentY);
+      doc.text(`Total Invoices: ${filteredInvoices.length}`, leftColX, currentY);
+      
+      currentY += lineSpacing;
+      doc.text(`Total POs: ${filteredPOs.length}`, leftColX, currentY);
 
       return currentY;
     };
 
-    const addStatusSummary = (startY) => {
-      const leftColX = margin;
-      let currentY = startY + 10;
-      const lineSpacing = 7;
+    const addTable = (startY, data, title) => {
+      const tableHeaders = user.department === 'FINANCE' 
+        ? [['Date', 'Time', 'Files Approved', 'Sender']]
+        : [['File Name', 'Type', 'Date', 'Time', 'Status', 'Uploaded By']];
 
-      const statusCount = filteredData.reduce((acc, curr) => {
-        acc[curr.status] = (acc[curr.status] || 0) + 1;
-        return acc;
-      }, {});
+      const tableData = user.department === 'FINANCE'
+        ? data.map(file => [
+            file.date,
+            file.time,
+            file.name,
+            file.sender
+          ])
+        : data.map(file => [
+            file.name,
+            file.type,
+            file.date,
+            file.time,
+            formatStatus(file.status, title.toLowerCase().includes('invoice') ? 'invoice' : 'po'),
+            file.uploadedBy === user.email ? 'Me' : file.uploadedBy
+          ]);
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.text('Status Summary:', leftColX, currentY);
-      
-      currentY += lineSpacing + 2;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-
-      Object.entries(statusCount).forEach(([status, count]) => {
-        doc.text(`${status}: ${count}`, leftColX, currentY);
-        currentY += lineSpacing;
-      });
-
-      return currentY;
-    };
-
-    const addTable = (startY) => {
-      const tableHeaders = [
-        [
-          { content: 'File Name', styles: { halign: 'left' } },
-          { content: 'Type', styles: { halign: 'left' } },
-          { content: 'Date', styles: { halign: 'center' } },
-          { content: 'Time', styles: { halign: 'center' } },
-          { content: 'Status', styles: { halign: 'center' } },
-          { content: 'Uploaded By', styles: { halign: 'left' } }
-        ]
-      ];
-
-      const tableData = filteredData.map(file => [
-        { content: file.name, styles: { halign: 'left' } },
-        { content: file.type, styles: { halign: 'left' } },
-        { content: file.date, styles: { halign: 'center' } },
-        { content: file.time, styles: { halign: 'center' } },
-        { content: formatStatus(file.status), styles: { halign: 'center' } },
-        { content: file.uploadedBy === user.email ? 'Me' : file.uploadedBy, styles: { halign: 'left' } }
-      ]);
+      doc.setFontSize(14);
+      doc.text(title, margin, startY);
 
       doc.autoTable({
-        startY: startY + 10,
+        startY: startY + 5,
         head: tableHeaders,
         body: tableData,
         theme: 'grid',
-        headStyles: {
-          fillColor: [52, 73, 94],
-          textColor: [255, 255, 255],
-          fontSize: 11,
-          fontStyle: 'bold',
-          cellPadding: { top: 5, right: 5, bottom: 5, left: 5 },
-          lineWidth: 0.1,
-          halign: 'center',
-          valign: 'middle'
-        },
-        bodyStyles: {
+        styles: {
           fontSize: 10,
-          cellPadding: { top: 4, right: 5, bottom: 4, left: 5 },
-          lineColor: [200, 200, 200],
-          lineWidth: 0.1
+          cellPadding: 5
         },
-        columnStyles: {
-          0: { cellWidth: 70 },
-          1: { cellWidth: 35 },
-          2: { cellWidth: 25 },
-          3: { cellWidth: 25 },
-          4: { cellWidth: 65 },
-          5: { cellWidth: 45 }
-        },
-        alternateRowStyles: {
-          fillColor: [245, 245, 245]
-        },
-        margin: { top: 10, right: margin, left: margin },
-        didDrawPage: function(data) {
-          addHeaderBanner();
-          doc.setFontSize(8);
-          doc.setTextColor(128, 128, 128);
-          doc.text(
-            `Page ${data.pageNumber}`,
-            pageWidth - margin - 15,
-            pageHeight - margin,
-            { align: 'right' }
-          );
-        }
+        margin: { top: 10, right: margin, left: margin }
       });
+
+      return doc.lastAutoTable.finalY;
     };
 
     addHeaderBanner();
     const metadataEndY = addMetadata();
-    const summaryEndY = addStatusSummary(metadataEndY);
-    addTable(summaryEndY);
+    const invoiceTableEndY = addTable(metadataEndY + 20, filteredInvoices, 'Invoices');
+    addTable(invoiceTableEndY + 20, filteredPOs, 'Purchase Orders');
     
-    doc.save(`fnb-invoice-report-${startDate}-to-${endDate}.pdf`);
+    doc.save(`fnb-document-report-${startDate}-to-${endDate}.pdf`);
   };
 
   const exportToExcel = () => {
-    const filteredData = getFilteredData();
-    const worksheet = XLSX.utils.json_to_sheet(filteredData.map(file => ({
-      'File Name': file.name,
-      'Type': file.type,
-      'Date': file.date,
-      'Time': file.time,
-      'Status': formatStatus(file.status),
-      'Uploaded By': file.uploadedBy === user.email ? 'Me' : file.uploadedBy
-    })));
+    const filteredInvoices = user.department === 'FINANCE' ? getFinanceApprovedInvoices() : getFilteredInvoices();
+    const filteredPOs = user.department === 'FINANCE' ? getFinanceApprovedPOs() : getFilteredPOs();
+
+    const invoiceWorksheet = XLSX.utils.json_to_sheet(
+      user.department === 'FINANCE'
+        ? filteredInvoices.map(file => ({
+            'Date': file.date,
+            'Time': file.time,
+            'Files Approved': file.name,
+            'Sender': file.sender
+          }))
+        : filteredInvoices.map(file => ({
+            'File Name': file.name,
+            'Type': file.type,
+            'Date': file.date,
+            'Time': file.time,
+            'Status': formatStatus(file.status, 'invoice'),
+            'Uploaded By': file.uploadedBy === user.email ? 'Me' : file.uploadedBy
+          }))
+    );
+
+    const poWorksheet = XLSX.utils.json_to_sheet(
+      user.department === 'FINANCE'
+        ? filteredPOs.map(file => ({
+            'Date': file.date,
+            'Time': file.time,
+            'Files Approved': file.name,
+            'Sender': file.sender
+          }))
+        : filteredPOs.map(file => ({
+            'File Name': file.name,
+            'Type': file.type,
+            'Date': file.date,
+            'Time': file.time,
+            'Status': formatStatus(file.status, 'po'),
+            'Uploaded By': file.uploadedBy === user.email ? 'Me' : file.uploadedBy
+          }))
+    );
     
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Invoices');
+    XLSX.utils.book_append_sheet(workbook, invoiceWorksheet, 'Invoices');
+    XLSX.utils.book_append_sheet(workbook, poWorksheet, 'Purchase Orders');
     
-    XLSX.writeFile(workbook, `invoice-report-${startDate}-to-${endDate}.xlsx`);
+    XLSX.writeFile(workbook, `document-report-${startDate}-to-${endDate}.xlsx`);
   };
 
   return (
     <div className="reports-container">
-      <div className="date-range-card">
-        <h2 className="text-xl font-semibold mb-4">Report Date Range</h2>
-        <div className="date-inputs-container">
-          <div className="date-input-group">
-            <label className="block text-sm font-medium mb-1">Start Date</label>
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        padding: '20px',
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+        marginBottom: '20px',
+        maxWidth: '800px'
+      }}>
+        <h2 style={{
+          fontSize: '1.25rem',
+          fontWeight: 600,
+          marginBottom: '1rem'
+        }}>Report Date Range</h2>
+        <div style={{
+          display: 'flex',
+          gap: '10px',
+          alignItems: 'flex-end',
+          flexWrap: 'nowrap'
+        }}>
+          <div style={{
+            flex: '0 1 auto',
+            minWidth: '150px'
+          }}>
+            <label style={{
+              display: 'block',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              marginBottom: '0.25rem'
+            }}>Start Date</label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="date-input"
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid #e2e8f0',
+                borderRadius: '4px',
+                fontSize: '0.875rem',
+                outline: 'none'
+              }}
             />
           </div>
-          <div className="date-input-group">
-            <label className="block text-sm font-medium mb-1">End Date</label>
+          <div style={{
+            flex: '0 1 auto',
+            minWidth: '150px'
+          }}>
+            <label style={{
+              display: 'block',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              marginBottom: '0.25rem'
+            }}>End Date</label>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="date-input"
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid #e2e8f0',
+                borderRadius: '4px',
+                fontSize: '0.875rem',
+                outline: 'none'
+              }}
             />
           </div>
-          <div className="flex items-end">
+          <div style={{
+            marginLeft: '10px'
+          }}>
             <button 
               onClick={generateReport}
-              className="generate-button"
+              style={{
+                backgroundColor: '#3182ce',
+                color: 'white',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                border: 'none',
+                transition: 'background-color 0.2s',
+                whiteSpace: 'nowrap',
+                height: '38px'
+              }}
             >
               Generate Report
             </button>
@@ -302,7 +396,8 @@ const Reports = () => {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="total" stroke="#8884d8" />
+                  <Line type="monotone" dataKey="invoices" stroke="#8884d8" name="Invoices" />
+                  <Line type="monotone" dataKey="pos" stroke="#82ca9d" name="Purchase Orders" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -322,33 +417,113 @@ const Reports = () => {
                 </button>
               </div>
             </div>
+
             <div className="table-container">
+              <h3 className="text-lg font-semibold mb-3">Invoices</h3>
               <table className="reports-table">
                 <thead>
                   <tr>
-                    <th>File Name</th>
-                    <th>Type</th>
-                    <th>Date</th>
-                    <th>Time</th>
-                    <th>Status</th>
-                    <th>Uploaded By</th>
+                    {user.department === 'FINANCE' ? (
+                      <>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Files Approved</th>
+                        <th>Sender</th>
+                      </>
+                    ) : (
+                      <>
+                        <th>File Name</th>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                        <th>Uploaded By</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {getFilteredData().map((file, index) => (
+                  {(user.department === 'FINANCE' ? getFinanceApprovedInvoices() : getFilteredInvoices()).map((file, index) => (
                     <tr key={index}>
-                      <td>{file.name}</td>
-                      <td>{file.type}</td>
-                      <td>{file.date}</td>
-                      <td>{file.time}</td>
-                      <td>
-                        <span className={`status-badge ${file.status.toLowerCase()}`}>
-                          {formatStatus(file.status)}
-                        </span>
-                      </td>
-                      <td>
-                        {file.uploadedBy === user.email ? 'Me' : file.uploadedBy}
-                      </td>
+                      {user.department === 'FINANCE' ? (
+                        <>
+                          <td>{file.date}</td>
+                          <td>{file.time}</td>
+                          <td>{file.name}</td>
+                          <td>{file.sender}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td>{file.name}</td>
+                          <td>{file.type}</td>
+                          <td>{file.date}</td>
+                          <td>{file.time}</td>
+                          <td>
+                            <span className={`status-badge ${file.status.toLowerCase()}`}>
+                              {formatStatus(file.status, 'invoice')}
+                            </span>
+                          </td>
+                          <td>
+                            {file.uploadedBy === user.email ? 'Me' : file.uploadedBy}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="table-container mt-8">
+              <h3 className="text-lg font-semibold mb-3">Purchase Orders</h3>
+              <table className="reports-table">
+                <thead>
+                  <tr>
+                    {user.department === 'FINANCE' ? (
+                      <>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Files Approved</th>
+                        <th>Sender</th>
+                      </>
+                    ) : (
+                      <>
+                        <th>File Name</th>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                        <th>Uploaded By</th>
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(user.department === 'FINANCE' ? getFinanceApprovedPOs() : getFilteredPOs()).map((file, index) => (
+                    <tr key={index}>
+                      {user.department === 'FINANCE' ? (
+                        <>
+                          <td>{file.date}</td>
+                          <td>{file.time}</td>
+                          <td>{file.name}</td>
+                          <td>{file.sender}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td>{file.name}</td>
+                          <td>{file.type}</td>
+                          <td>{file.date}</td>
+                          <td>{file.time}</td>
+                          <td>
+                            <span className={`status-badge ${file.status.toLowerCase()}`}>
+                              {formatStatus(file.status, 'po')}
+                            </span>
+                          </td>
+                          <td>
+                            {file.uploadedBy === user.email ? 'Me' : file.uploadedBy}
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
