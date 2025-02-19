@@ -5,6 +5,8 @@ import { useInvoices } from '../Context/InvoiceContext';
 import { useAuth } from '../Context/AuthContext';
 import "../upload.css"
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
+
 const Upload = () => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [selectedPOFiles, setSelectedPOFiles] = useState([]);
@@ -34,16 +36,35 @@ const Upload = () => {
       alert('Please select only PDF files');
       return;
     }
-    
-    if (isPO) {
-      setSelectedPOFiles(files);
+
+    const oversizedFiles = files.filter(file => file.size > MAX_FILE_SIZE);
+    if (oversizedFiles.length > 0) {
+      alert(`The following files exceed the maximum size limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB:\n${oversizedFiles.map(f => f.name).join('\n')}`);
+      const validFiles = files.filter(file => file.size <= MAX_FILE_SIZE);
+      if (validFiles.length === 0) {
+        return;
+      }
+      if (isPO) {
+        setSelectedPOFiles(validFiles);
+      } else {
+        setSelectedFiles(validFiles);
+        const initialAmounts = validFiles.reduce((acc, file) => {
+          acc[file.name] = '';
+          return acc;
+        }, {});
+        setFileAmounts(initialAmounts);
+      }
     } else {
-      setSelectedFiles(files);
-      const initialAmounts = files.reduce((acc, file) => {
-        acc[file.name] = '';
-        return acc;
-      }, {});
-      setFileAmounts(initialAmounts);
+      if (isPO) {
+        setSelectedPOFiles(files);
+      } else {
+        setSelectedFiles(files);
+        const initialAmounts = files.reduce((acc, file) => {
+          acc[file.name] = '';
+          return acc;
+        }, {});
+        setFileAmounts(initialAmounts);
+      }
     }
   };
 
@@ -270,8 +291,6 @@ const Upload = () => {
 };
 
 export default Upload;
-
-
 
 
 

@@ -1,4 +1,4 @@
- import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 
 const InvoiceContext = createContext(null);
@@ -16,6 +16,8 @@ export const PO_STATUS = {
   APPROVED: 'APPROVED',
   SIGNED: 'SIGNED'
 };
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB limit
 
 export const InvoiceProvider = ({ children }) => {
   const [invoices, setInvoices] = useState([]);
@@ -35,6 +37,11 @@ export const InvoiceProvider = ({ children }) => {
 
   const addInvoice = async (file, amount) => {
     if (!user) return null;
+    
+    if (file.size > MAX_FILE_SIZE) {
+      alert(`File size exceeds the maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+      return null;
+    }
   
     return new Promise((resolve) => {
       const newInvoice = {
@@ -69,11 +76,25 @@ export const InvoiceProvider = ({ children }) => {
 
   const addMultipleInvoices = async (files, amounts) => {
     if (!user) return null;
-    return Promise.all(files.map(file => addInvoice(file, amounts[file.name])));
+    
+    const validFiles = Array.from(files).filter(file => {
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`File ${file.name} exceeds the maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+        return false;
+      }
+      return true;
+    });
+    
+    return Promise.all(validFiles.map(file => addInvoice(file, amounts[file.name])));
   };
 
   const addPOFile = async (file) => {
     if (!user) return null;
+    
+    if (file.size > MAX_FILE_SIZE) {
+      alert(`File size exceeds the maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+      return null;
+    }
   
     return new Promise((resolve) => {
       const newPOFile = {
@@ -109,7 +130,16 @@ export const InvoiceProvider = ({ children }) => {
 
   const addMultiplePOFiles = async (files) => {
     if (!user) return null;
-    return Promise.all(files.map(file => addPOFile(file)));
+    
+    const validFiles = Array.from(files).filter(file => {
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`File ${file.name} exceeds the maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+        return false;
+      }
+      return true;
+    });
+    
+    return Promise.all(validFiles.map(file => addPOFile(file)));
   };
 
   const updateInvoiceStatus = (invoiceId, newStatus) => {
@@ -119,6 +149,7 @@ export const InvoiceProvider = ({ children }) => {
     setInvoices(updatedInvoices);
     localStorage.setItem('invoices', JSON.stringify(updatedInvoices));
   };
+
   const updatePOFileStatus = (fileId, newStatus, signedContent = null) => {
     const updatedFiles = poFiles.map(file => 
       file.id === fileId 
@@ -133,35 +164,6 @@ export const InvoiceProvider = ({ children }) => {
     localStorage.setItem('poFiles', JSON.stringify(updatedFiles));
   };
 
-  
-  // const getVisibleInvoices = () => {
-  //   if (!user) return [];
-
-  //   if (user.department === 'FINANCE') {
-  //     switch (user.role) {
-  //       case 'FINANCE_REVIEWER_1':
-  //         return invoices.filter(i => i.status === INVOICE_STATUS.PENDING);
-  //       case 'FINANCE_REVIEWER_2':
-  //         return invoices.filter(i => i.status === INVOICE_STATUS.REVIEW_1);
-  //       case 'FINANCE_REVIEWER_3':
-  //         return invoices.filter(i => 
-  //           i.status === INVOICE_STATUS.REVIEW_2 && 
-  //           i.amount <= 10000
-  //         );
-  //       case 'FINANCE_REVIEWER_4':
-  //         return invoices.filter(i => i.status === INVOICE_STATUS.REVIEW_3);
-  //       default:
-  //         return [];
-  //     }
-  //   } else if (user.department === 'EXCOBERS') {
-  //     return invoices.filter(i => 
-  //       i.status === INVOICE_STATUS.REVIEW_2 && 
-  //       i.amount > 10000
-  //     );
-  //   } else {
-  //     return invoices.filter(i => i.department === user.department);
-  //   }
-  // };
   const getVisibleInvoices = () => {
     if (!user) return [];
   
@@ -193,27 +195,6 @@ export const InvoiceProvider = ({ children }) => {
     }
   };
 
-  // const canEditInvoice = (invoice) => {
-  //   if (!user) return false;
-
-  //   if (user.department === 'FINANCE') {
-  //     switch (user.role) {
-  //       case 'FINANCE_REVIEWER_1':
-  //         return invoice.status === INVOICE_STATUS.PENDING;
-  //       case 'FINANCE_REVIEWER_2':
-  //         return invoice.status === INVOICE_STATUS.REVIEW_1;
-  //       case 'FINANCE_REVIEWER_3':
-  //         return invoice.status === INVOICE_STATUS.REVIEW_2 && invoice.amount <= 10000;
-  //       case 'FINANCE_REVIEWER_4':
-  //         return invoice.status === INVOICE_STATUS.REVIEW_3;
-  //       default:
-  //         return false;
-  //     }
-  //   } else if (user.department === 'EXCOBERS') {
-  //     return invoice.status === INVOICE_STATUS.REVIEW_2 && invoice.amount > 10000;
-  //   }
-  //   return false;
-  // };
   const canEditInvoice = (invoice) => {
     if (!user) return false;
   
@@ -233,6 +214,7 @@ export const InvoiceProvider = ({ children }) => {
     }
     return false;
   };
+
   const downloadInvoice = (invoice) => {
     if (!invoice.content) return;
 
@@ -243,7 +225,6 @@ export const InvoiceProvider = ({ children }) => {
     link.click();
     document.body.removeChild(link);
   };
-
 
   const downloadPOFile = (file, signed = false) => {
     const content = signed ? file.signedContent : file.content;
@@ -256,7 +237,6 @@ export const InvoiceProvider = ({ children }) => {
     }
   
     if (fileType === 'application/pdf') {
-      // Handle PDF files to ensure proper download
       const base64Data = content.split(',')[1];
       const blob = new Blob([atob(base64Data)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
@@ -269,7 +249,6 @@ export const InvoiceProvider = ({ children }) => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } else {
-      // Handle all other file types directly
       const link = document.createElement('a');
       link.href = content;
       link.download = fileName;
@@ -278,7 +257,13 @@ export const InvoiceProvider = ({ children }) => {
       document.body.removeChild(link);
     }
   };
+
   const uploadSignedPOFile = async (fileId, signedFile) => {
+    if (signedFile.size > MAX_FILE_SIZE) {
+      alert(`File size exceeds the maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+      return null;
+    }
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -336,8 +321,6 @@ export const useInvoices = () => {
   }
   return context;
 };
-
-
 
 
 
