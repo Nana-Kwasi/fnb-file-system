@@ -672,13 +672,23 @@ const Dashboard = () => {
       {
         id: 'POScreen',
         icon: <FileText size={20} />,
-        label: 'POS',
+        label: 'PO',
         visible: true
       }
     ];
 
     return items.filter(item => item.visible);
   };
+
+
+
+
+
+
+
+
+
+  
 
   // const renderScreen = () => {
   //   switch(currentScreen) {

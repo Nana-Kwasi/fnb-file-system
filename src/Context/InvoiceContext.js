@@ -16,9 +16,24 @@ export const PO_STATUS = {
   APPROVED: 'APPROVED',
   SIGNED: 'SIGNED'
 };
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB limit
+const checkStorageAvailability = (dataSize) => {
+  try {
+    const testKey = 'storage-test';
+    localStorage.setItem(testKey, '0');
+    localStorage.removeItem(testKey);
 
+    const totalSize = Object.keys(localStorage).reduce((total, key) => {
+      return total + localStorage[key].length;
+    }, 0);
+
+    const estimatedAvailable = 5 * 1024 * 1024 - totalSize; // Estimate 5MB limit
+    return estimatedAvailable >= dataSize;
+  } catch (e) {
+    return false;
+  }
+};
 export const InvoiceProvider = ({ children }) => {
   const [invoices, setInvoices] = useState([]);
   const [poFiles, setPoFiles] = useState([]);
@@ -35,44 +50,61 @@ export const InvoiceProvider = ({ children }) => {
     }
   }, []);
 
+  const safelySetLocalStorage = (key, value) => {
+    const dataSize = value.length;
+    if (!checkStorageAvailability(dataSize)) {
+      throw new Error('STORAGE_QUOTA_EXCEEDED');
+    }
+    localStorage.setItem(key, value);
+  };
   const addInvoice = async (file, amount) => {
     if (!user) return null;
     
     if (file.size > MAX_FILE_SIZE) {
-      alert(`File size exceeds the maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
-      return null;
+      throw new Error('FILE_TOO_LARGE');
     }
   
-    return new Promise((resolve) => {
-      const newInvoice = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        name: file.name,
-        type: file.type,
-        date: new Date().toISOString().split('T')[0],
-        time: new Date().toLocaleTimeString(),
-        status: INVOICE_STATUS.PENDING,
-        amount: amount ? parseFloat(amount) : 0,
-        sender: user.email,
-        department: user.department,
-        uploadedBy: user.email,
-        size: (file.size / 1024).toFixed(2),
-        lastModified: file.lastModified,
-        content: null
-      };
-  
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const updatedInvoice = { ...newInvoice, content: e.target.result };
-        setInvoices(prevInvoices => {
-          const newInvoices = [...prevInvoices, updatedInvoice];
-          localStorage.setItem('invoices', JSON.stringify(newInvoices));
-          return newInvoices;
-        });
-        resolve(updatedInvoice);
+        try {
+          const dataSize = e.target.result.length;
+          if (!checkStorageAvailability(dataSize)) {
+            reject(new Error('STORAGE_QUOTA_EXCEEDED'));
+            return;
+          }
+
+          const newInvoice = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            name: file.name,
+            type: file.type,
+            date: new Date().toISOString().split('T')[0],
+            time: new Date().toLocaleTimeString(),
+            status: INVOICE_STATUS.PENDING,
+            amount: amount ? parseFloat(amount) : 0,
+            sender: user.email,
+            department: user.department,
+            uploadedBy: user.email,
+            size: (file.size / 1024).toFixed(2),
+            lastModified: file.lastModified,
+            content: e.target.result
+          };
+
+          setInvoices(prevInvoices => {
+            const newInvoices = [...prevInvoices, newInvoice];
+            safelySetLocalStorage('invoices', JSON.stringify(newInvoices));
+            return newInvoices;
+          });
+          resolve(newInvoice);
+        } catch (error) {
+          reject(error);
+        }
       };
+      reader.onerror = () => reject(new Error('FILE_READ_ERROR'));
       reader.readAsDataURL(file);
     });
   };
+
 
   const addMultipleInvoices = async (files, amounts) => {
     if (!user) return null;
@@ -87,43 +119,51 @@ export const InvoiceProvider = ({ children }) => {
     
     return Promise.all(validFiles.map(file => addInvoice(file, amounts[file.name])));
   };
-
-  const addPOFile = async (file) => {
+ const addPOFile = async (file) => {
     if (!user) return null;
     
     if (file.size > MAX_FILE_SIZE) {
-      alert(`File size exceeds the maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
-      return null;
+      throw new Error('FILE_TOO_LARGE');
     }
   
-    return new Promise((resolve) => {
-      const newPOFile = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        name: file.name,
-        type: file.type,
-        date: new Date().toISOString().split('T')[0],
-        time: new Date().toLocaleTimeString(),
-        status: PO_STATUS.PENDING,
-        sender: user.email,
-        username: user.username,
-        department: user.department,
-        uploadedBy: user.email,
-        size: (file.size / 1024).toFixed(2),
-        lastModified: file.lastModified,
-        content: null,
-        signedContent: null
-      };
-  
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const updatedPOFile = { ...newPOFile, content: e.target.result };
-        setPoFiles(prevFiles => {
-          const newFiles = [...prevFiles, updatedPOFile];
-          localStorage.setItem('poFiles', JSON.stringify(newFiles));
-          return newFiles;
-        });
-        resolve(updatedPOFile);
+        try {
+          const dataSize = e.target.result.length;
+          if (!checkStorageAvailability(dataSize)) {
+            reject(new Error('STORAGE_QUOTA_EXCEEDED'));
+            return;
+          }
+
+          const newPOFile = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            name: file.name,
+            type: file.type,
+            date: new Date().toISOString().split('T')[0],
+            time: new Date().toLocaleTimeString(),
+            status: PO_STATUS.PENDING,
+            sender: user.email,
+            username: user.username,
+            department: user.department,
+            uploadedBy: user.email,
+            size: (file.size / 1024).toFixed(2),
+            lastModified: file.lastModified,
+            content: e.target.result,
+            signedContent: null
+          };
+
+          setPoFiles(prevFiles => {
+            const newFiles = [...prevFiles, newPOFile];
+            safelySetLocalStorage('poFiles', JSON.stringify(newFiles));
+            return newFiles;
+          });
+          resolve(newPOFile);
+        } catch (error) {
+          reject(error);
+        }
       };
+      reader.onerror = () => reject(new Error('FILE_READ_ERROR'));
       reader.readAsDataURL(file);
     });
   };
@@ -147,7 +187,7 @@ export const InvoiceProvider = ({ children }) => {
       invoice.id === invoiceId ? { ...invoice, status: newStatus } : invoice
     );
     setInvoices(updatedInvoices);
-    localStorage.setItem('invoices', JSON.stringify(updatedInvoices));
+    safelySetLocalStorage('invoices', JSON.stringify(updatedInvoices));
   };
 
   const updatePOFileStatus = (fileId, newStatus, signedContent = null) => {
@@ -161,7 +201,7 @@ export const InvoiceProvider = ({ children }) => {
         : file
     );
     setPoFiles(updatedFiles);
-    localStorage.setItem('poFiles', JSON.stringify(updatedFiles));
+    safelySetLocalStorage('poFiles', JSON.stringify(updatedFiles));
   };
 
   const getVisibleInvoices = () => {
@@ -281,7 +321,11 @@ export const InvoiceProvider = ({ children }) => {
               : file
           );
           setPoFiles(updatedFiles);
-          localStorage.setItem('poFiles', JSON.stringify(updatedFiles));
+          const success = safelySetLocalStorage('poFiles', JSON.stringify(updatedFiles));
+          if (!success) {
+            reject(new Error('Storage quota exceeded'));
+            return;
+          }
           resolve(signedContent);
         } catch (error) {
           reject(error);
@@ -314,6 +358,7 @@ export const InvoiceProvider = ({ children }) => {
   );
 };
 
+
 export const useInvoices = () => {
   const context = useContext(InvoiceContext);
   if (!context) {
@@ -321,8 +366,6 @@ export const useInvoices = () => {
   }
   return context;
 };
-
-
 
 
 

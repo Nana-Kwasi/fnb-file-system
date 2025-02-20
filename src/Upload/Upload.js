@@ -5,7 +5,7 @@ import { useInvoices } from '../Context/InvoiceContext';
 import { useAuth } from '../Context/AuthContext';
 import "../upload.css"
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 const Upload = () => {
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -26,47 +26,64 @@ const Upload = () => {
 
   const handleFileSelect = (event, isPO = false) => {
     const files = Array.from(event.target.files);
+    event.target.value = '';
+
     if (files.length > 4) {
       alert('Maximum 4 files can be uploaded at once');
       return;
     }
-    
+
+    // Check file sizes
+    const oversizedFiles = files.filter(file => file.size > MAX_FILE_SIZE);
+    if (oversizedFiles.length > 0) {
+      const fileNames = oversizedFiles.map(f => f.name).join(', ');
+      alert(`The following files are too large and cannot be selected:\n${fileNames}\nMaximum file size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
+      return;
+    }
+
+    // Estimate total size of selected files
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    const estimatedBase64Size = totalSize * 1.37; // Base64 encoding increases size by ~37%
+
+    // Check if we have enough storage
+    try {
+      const testKey = 'storage-test';
+      localStorage.setItem(testKey, '0');
+      localStorage.removeItem(testKey);
+
+      const currentStorageUsed = Object.keys(localStorage).reduce((total, key) => {
+        return total + localStorage[key].length;
+      }, 0);
+
+      const estimatedAvailable = 5 * 1024 * 1024 - currentStorageUsed; // Estimate 5MB limit
+
+      if (estimatedBase64Size > estimatedAvailable) {
+        alert('Not enough storage space available. Please delete some existing files before uploading new ones.');
+        return;
+      }
+    } catch (e) {
+      alert('Storage is not available. Please check your browser settings.');
+      return;
+    }
+
     const currentFilter = isPO ? poFileFilter : fileFilter;
     if (currentFilter === 'pdf' && files.some(file => !file.type.includes('pdf'))) {
       alert('Please select only PDF files');
       return;
     }
 
-    const oversizedFiles = files.filter(file => file.size > MAX_FILE_SIZE);
-    if (oversizedFiles.length > 0) {
-      alert(`The following files exceed the maximum size limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB:\n${oversizedFiles.map(f => f.name).join('\n')}`);
-      const validFiles = files.filter(file => file.size <= MAX_FILE_SIZE);
-      if (validFiles.length === 0) {
-        return;
-      }
-      if (isPO) {
-        setSelectedPOFiles(validFiles);
-      } else {
-        setSelectedFiles(validFiles);
-        const initialAmounts = validFiles.reduce((acc, file) => {
-          acc[file.name] = '';
-          return acc;
-        }, {});
-        setFileAmounts(initialAmounts);
-      }
+    if (isPO) {
+      setSelectedPOFiles(files);
     } else {
-      if (isPO) {
-        setSelectedPOFiles(files);
-      } else {
-        setSelectedFiles(files);
-        const initialAmounts = files.reduce((acc, file) => {
-          acc[file.name] = '';
-          return acc;
-        }, {});
-        setFileAmounts(initialAmounts);
-      }
+      setSelectedFiles(files);
+      const initialAmounts = files.reduce((acc, file) => {
+        acc[file.name] = '';
+        return acc;
+      }, {});
+      setFileAmounts(initialAmounts);
     }
   };
+
 
   const handleAmountChange = (fileName, value) => {
     setFileAmounts(prev => ({
@@ -291,8 +308,6 @@ const Upload = () => {
 };
 
 export default Upload;
-
-
 
 // import React, { useState, useRef } from 'react';
 // import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
