@@ -140,3 +140,45 @@ const FileStatusCircles = ({ invoices, INVOICE_STATUS }) => {
 };
 
 export default FileStatusCircles;
+
+
+
+
+
+
+
+
+
+
+// CREATE TABLE po_files (
+//   id SERIAL PRIMARY KEY,
+//   name VARCHAR(255) NOT NULL,
+//   type VARCHAR(50),
+//   date DATE NOT NULL,
+//   time TIME NOT NULL,
+//   status VARCHAR(50) NOT NULL,
+//   sender VARCHAR(100) NOT NULL,
+//   username VARCHAR(100) NOT NULL,
+//   department VARCHAR(50) NOT NULL,
+//   uploaded_by VARCHAR(100) NOT NULL,
+//   size DECIMAL(10, 2) NOT NULL,
+//   last_modified TIMESTAMP NOT NULL,
+//   content TEXT NOT NULL,
+//   signed_content TEXT,
+//   signed_file_name VARCHAR(255),
+//   signed_file_type VARCHAR(50)
+// );
+// CREATE TABLE invoices ( 
+//   id SERIAL PRIMARY KEY,
+//    name VARCHAR(255) NOT NULL, 
+//    type VARCHAR(50), 
+//    date DATE NOT NULL, 
+//    time TIME NOT NULL, 
+//    status VARCHAR(50) NOT NULL, 
+//    amount DECIMAL(10, 2) NOT NULL, 
+//    sender VARCHAR(100) NOT NULL, 
+//    department VARCHAR(50) NOT NULL, 
+//    uploaded_by VARCHAR(100) NOT NULL, 
+//    size DECIMAL(10, 2) NOT NULL, 
+//    last_modified TIMESTAMP NOT NULL, 
+//    content TEXT NOT NULL );
