@@ -41,3 +41,9 @@
     -->
   </body>
 </html>
+
+<!-- 
+CREATE TYPE invoice_status AS ENUM ('PENDING', 'First Approve', 'Second Approve', 'Third Approve', 'Paid');
+CREATE TYPE po_status AS ENUM ('PENDING', 'APPROVED', 'SIGNED');
+ALTER TABLE invoices ALTER COLUMN status TYPE invoice_status USING status::invoice_status;
+ALTER TABLE po_files ALTER COLUMN status TYPE po_status USING status::po_status; -->
