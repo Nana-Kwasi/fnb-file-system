@@ -252,32 +252,6 @@ const Dashboard = () => {
       default: return '0/4';
     }
   };
-
-  // const getNextReviewer = (status, amount) => {
-  //   const MOCK_USERS = [
-  //     { role: ROLES.FINANCE_REVIEWER_1, username: 'Quachi' },
-  //     { role: ROLES.FINANCE_REVIEWER_2, username: 'Vanessa' },
-  //     { role: ROLES.FINANCE_REVIEWER_3, username: 'Alex' },
-  //     { role: ROLES.EXCOBERS_REVIEWER, username: 'John Executive' }
-  //   ];
-
-  //   switch (status) {
-  //     case INVOICE_STATUS.PENDING:
-  //       return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_1)?.username;
-  //     case INVOICE_STATUS.REVIEW_1:
-  //       return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_2)?.username;
-  //     case INVOICE_STATUS.REVIEW_2:
-  //       return parseFloat(amount) > 10000 ? 
-  //         MOCK_USERS.find(u => u.role === ROLES.EXCOBERS_REVIEWER)?.username :
-  //         MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_3)?.username;
-  //     case INVOICE_STATUS.REVIEW_3:
-  //       return 'Payment Processing';
-  //     case INVOICE_STATUS.PAID:
-  //       return 'PAID';
-  //     default:
-  //       return 'Unknown';
-  //   }
-  // };
   const getNextReviewer = (status) => {
     const MOCK_USERS = [
       { role: ROLES.FINANCE_REVIEWER_1, username: 'Quachi' },

@@ -1,4 +1,4 @@
-// src/App.js
+  
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './Context/AuthContext';
@@ -12,9 +12,6 @@ import DashboardCharts from './Dashboardchart/Dashboardchart';
 import FileStatusCircles from './File/FileStatus';
 import PurchaseForm from './PurchaseForm/PurchaseForm';
 import POScreen from './POScreen/POScreen';
-
-
-
 
 const App = () => {
   return (
@@ -31,9 +28,6 @@ const App = () => {
             <Route path="/FileStatus" element={<FileStatusCircles />} />
             <Route path="/PurchaseForm" element={<PurchaseForm />} />
             <Route path="/POScreen" element={<POScreen />} />
-
-
-
           </Routes>
         </Router>
       </InvoiceProvider>
