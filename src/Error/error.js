@@ -2494,14 +2494,14 @@ Error: Route.post() requires a callback function but got a [object Undefined]
 Node.js v22.13.1
 PS C:\Users\f8877557\file-backend>
 
-//invoice controller
+// This is a direct replacement for your invoices.js file
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { authenticateToken, isFinanceRole } = require('../route/middleware/auth');
+const { authenticateToken, isFinanceRole } = require('../middleware/auth'); // Adjust path if needed
 
 // Set up file storage
 const storage = multer.diskStorage({
@@ -2807,6 +2807,143 @@ router.patch('/api/invoices/:id/status', authenticateToken, isFinanceRole, async
   }
 });
 
-// Add your comment route or other routes here
+// Add a comment to an invoice
+router.post('/api/invoices/:id/comments', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comment } = req.body;
+    
+    if (!comment || comment.trim() === '') {
+      return res.status(400).json({ success: false, message: 'Comment cannot be empty' });
+    }
+    
+    const invoiceIndex = invoices.findIndex(inv => inv.id === id);
+    
+    if (invoiceIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+    
+    // Check if user has access to this invoice
+    const hasAccess = req.user.department === 'FINANCE' || invoices[invoiceIndex].department === req.user.department;
+    
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    
+    // Initialize comments array if it doesn't exist
+    if (!invoices[invoiceIndex].comments) {
+      invoices[invoiceIndex].comments = [];
+    }
+    
+    const newComment = {
+      id: uuidv4(),
+      text: comment,
+      createdBy: req.user.email,
+      createdAt: new Date().toISOString(),
+      userRole: req.user.role
+    };
+    
+    invoices[invoiceIndex].comments.push(newComment);
+    
+    return res.status(201).json({
+      success: true,
+      comment: newComment
+    });
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    return res.status(500).json({ success: false, message: 'Error adding comment', error: error.message });
+  }
+});
+
+// Get comments for an invoice
+router.get('/api/invoices/:id/comments', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const invoice = invoices.find(inv => inv.id === id);
+    
+    if (!invoice) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+    
+    // Check if user has access to this invoice
+    const hasAccess = req.user.department === 'FINANCE' || invoice.department === req.user.department;
+    
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    
+    const comments = invoice.comments || [];
+    
+    return res.status(200).json({
+      success: true,
+      comments
+    });
+  } catch (error) {
+    console.error('Error fetching comments:', error);
+    return res.status(500).json({ success: false, message: 'Error fetching comments', error: error.message });
+  }
+});
 
 module.exports = router;
+
+
+//line checker
+// Line Checker - Run this to find exactly what's at line 140
+const fs = require('fs');
+const path = require('path');
+
+// Path to the problematic file
+const filePath = path.join(__dirname, 'route', 'invoices.js');
+
+try {
+  const content = fs.readFileSync(filePath, 'utf8');
+  const lines = content.split('\n');
+  
+  // Check a range of lines around line 140
+  console.log('--- Problematic Area ---');
+  for (let i = 135; i <= 145; i++) {
+    if (i-1 < lines.length) {
+      console.log(`Line ${i}: ${lines[i-1]}`);
+    }
+  }
+  
+  // Check for incomplete router.post() calls
+  console.log('\n--- Checking for incomplete router.post() calls ---');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('router.post(') && !line.includes('async') && !line.includes('=>')) {
+      console.log(`Possible issue at line ${i+1}: ${line}`);
+      
+      // Check if this is part of a multi-line declaration
+      if (!line.includes(');')) {
+        let j = i + 1;
+        let fullDeclaration = line;
+        let foundCallback = false;
+        
+        // Look ahead to find closing parenthesis
+        while (j < lines.length && !fullDeclaration.includes(');')) {
+          fullDeclaration += lines[j].trim();
+          if (lines[j].includes('function(') || lines[j].includes('=>') || lines[j].includes('async')) {
+            foundCallback = true;
+          }
+          j++;
+        }
+        
+        if (!foundCallback) {
+          console.log(`Multi-line route without callback at lines ${i+1}-${j}`);
+        }
+      }
+    }
+  }
+  
+  console.log('\n--- Route Declarations ---');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('router.') && line.match(/\.(get|post|put|patch|delete)\(/)) {
+      console.log(`Line ${i+1}: ${line}`);
+    }
+  }
+  
+} catch (error) {
+  console.error('Error reading file:', error);
+}
