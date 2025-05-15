@@ -1211,3 +1211,1259 @@ router.post('/verify2fa', usersController.verify2FA);
 router.post('/finalize-login', usersController.finalizeLogin);
 router.post('/checkUserBranches', usersController.checkUserBranches);
 router.post('/track2FAStatus', usersController.track2FAStatus);
+
+
+
+
+
+
+
+
+
+
+
+// api route for invoice
+const express = require('express');
+const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
+const { authenticateToken, isFinanceRole } = require('../middleware/auth');
+
+// Set up file storage
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '../uploads/invoices');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniquePrefix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniquePrefix + '-' + file.originalname);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+});
+
+// Invoice status constants
+const INVOICE_STATUS = {
+  PENDING: 'PENDING',
+  REVIEW_1: 'First Approve',
+  REVIEW_2: 'Second Approve',
+  REVIEW_3: 'Third Approve',
+  PAID: 'Paid',
+};
+
+// Database mock (replace with actual database operations)
+let invoices = [];
+
+// Upload a single invoice
+router.post('/api/invoices/upload', authenticateToken, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const { amount } = req.body;
+    
+    const newInvoice = {
+      id: uuidv4(),
+      name: req.file.originalname,
+      type: req.file.mimetype,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString(),
+      status: INVOICE_STATUS.PENDING,
+      amount: amount ? parseFloat(amount) : 0,
+      sender: req.user.email,
+      department: req.user.department,
+      uploadedBy: req.user.email,
+      size: (req.file.size / 1024).toFixed(2),
+      lastModified: Date.now(),
+      filePath: req.file.path
+    };
+
+    invoices.push(newInvoice);
+
+    return res.status(201).json({
+      success: true,
+      invoice: {
+        ...newInvoice,
+        filePath: undefined // Don't expose the file path to the client
+      }
+    });
+  } catch (error) {
+    console.error('Error uploading invoice:', error);
+    return res.status(500).json({ success: false, message: 'Error uploading invoice', error: error.message });
+  }
+});
+
+// Upload multiple invoices
+router.post('/api/invoices/upload/multiple', authenticateToken, upload.array('files'), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, message: 'No files uploaded' });
+    }
+
+    let amounts = {};
+    if (req.body.amounts) {
+      try {
+        amounts = JSON.parse(req.body.amounts);
+      } catch (e) {
+        return res.status(400).json({ success: false, message: 'Invalid amounts JSON' });
+      }
+    }
+
+    const uploadedInvoices = req.files.map(file => {
+      const amount = amounts[file.originalname] || 0;
+      
+      const newInvoice = {
+        id: uuidv4(),
+        name: file.originalname,
+        type: file.mimetype,
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString(),
+        status: INVOICE_STATUS.PENDING,
+        amount: parseFloat(amount),
+        sender: req.user.email,
+        department: req.user.department,
+        uploadedBy: req.user.email,
+        size: (file.size / 1024).toFixed(2),
+        lastModified: Date.now(),
+        filePath: file.path
+      };
+
+      invoices.push(newInvoice);
+      return {
+        ...newInvoice,
+        filePath: undefined // Don't expose the file path to the client
+      };
+    });
+
+    return res.status(201).json({
+      success: true,
+      invoices: uploadedInvoices
+    });
+  } catch (error) {
+    console.error('Error uploading multiple invoices:', error);
+    return res.status(500).json({ success: false, message: 'Error uploading invoices', error: error.message });
+  }
+});
+
+// Get all invoices visible to the user
+router.get('/api/invoices', authenticateToken, async (req, res) => {
+  try {
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const startIndex = (page - 1) * limit;
+    
+    // Filtering
+    let filteredInvoices = [...invoices];
+    
+    if (req.query.status) {
+      filteredInvoices = filteredInvoices.filter(invoice => invoice.status === req.query.status);
+    }
+    
+    if (req.query.department) {
+      filteredInvoices = filteredInvoices.filter(invoice => invoice.department === req.query.department);
+    }
+    
+    // Role-based filtering
+    if (req.user.department === 'FINANCE') {
+      switch (req.user.role) {
+        case 'FINANCE_REVIEWER_1':
+          filteredInvoices = filteredInvoices.filter(i => i.status === INVOICE_STATUS.PENDING);
+          break;
+        case 'FINANCE_REVIEWER_2':
+          filteredInvoices = filteredInvoices.filter(i => i.status === INVOICE_STATUS.REVIEW_1);
+          break;
+        case 'FINANCE_REVIEWER_3':
+          filteredInvoices = filteredInvoices.filter(i => i.status === INVOICE_STATUS.REVIEW_2);
+          break;
+        case 'FINANCE_REVIEWER_4':
+          filteredInvoices = filteredInvoices.filter(i => i.status === INVOICE_STATUS.REVIEW_3);
+          break;
+        default:
+          break;
+      }
+    } else {
+      // For department users, show only invoices from their department
+      filteredInvoices = filteredInvoices.filter(i => i.department === req.user.department);
+    }
+    
+    const total = filteredInvoices.length;
+    
+    // Apply pagination
+    const paginatedInvoices = filteredInvoices.slice(startIndex, startIndex + limit);
+    
+    // Remove filePath from response
+    const sanitizedInvoices = paginatedInvoices.map(invoice => {
+      const { filePath, ...rest } = invoice;
+      return rest;
+    });
+    
+    return res.status(200).json({
+      invoices: sanitizedInvoices,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching invoices:', error);
+    return res.status(500).json({ success: false, message: 'Error fetching invoices', error: error.message });
+  }
+});
+
+// Get invoice by ID
+router.get('/api/invoices/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const invoice = invoices.find(inv => inv.id === id);
+    
+    if (!invoice) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+    
+    // Check if user has access to this invoice
+    const hasAccess = req.user.department === 'FINANCE' || invoice.department === req.user.department;
+    
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    
+    const { filePath, ...sanitizedInvoice } = invoice;
+    
+    return res.status(200).json({
+      ...sanitizedInvoice,
+      downloadUrl: `/api/invoices/${id}/download`
+    });
+  } catch (error) {
+    console.error('Error fetching invoice:', error);
+    return res.status(500).json({ success: false, message: 'Error fetching invoice', error: error.message });
+  }
+});
+
+// Download invoice file
+router.get('/api/invoices/:id/download', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const invoice = invoices.find(inv => inv.id === id);
+    
+    if (!invoice) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+    
+    // Check if user has access to this invoice
+    const hasAccess = req.user.department === 'FINANCE' || invoice.department === req.user.department;
+    
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    
+    return res.download(invoice.filePath, invoice.name);
+  } catch (error) {
+    console.error('Error downloading invoice:', error);
+    return res.status(500).json({ success: false, message: 'Error downloading invoice', error: error.message });
+  }
+});
+
+
+router.patch('/api/invoices/:id/status', authenticateToken, isFinanceRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!Object.values(INVOICE_STATUS).includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+    
+    const invoiceIndex = invoices.findIndex(inv => inv.id === id);
+    
+    if (invoiceIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+    
+    let canUpdate = false;
+    switch (req.user.role) {
+      case 'FINANCE_REVIEWER_1':
+        canUpdate = invoices[invoiceIndex].status === INVOICE_STATUS.PENDING && status === INVOICE_STATUS.REVIEW_1;
+        break;
+      case 'FINANCE_REVIEWER_2':
+        canUpdate = invoices[invoiceIndex].status === INVOICE_STATUS.REVIEW_1 && status === INVOICE_STATUS.REVIEW_2;
+        break;
+      case 'FINANCE_REVIEWER_3':
+        canUpdate = invoices[invoiceIndex].status === INVOICE_STATUS.REVIEW_2 && status === INVOICE_STATUS.REVIEW_3;
+        break;
+      case 'FINANCE_REVIEWER_4':
+        canUpdate = invoices[invoiceIndex].status === INVOICE_STATUS.REVIEW_3 && status === INVOICE_STATUS.PAID;
+        break;
+      default:
+        canUpdate = false;
+    }
+    
+    if (!canUpdate) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'You are not authorized to update this invoice to the requested status' 
+      });
+    }
+    
+    // Update the invoice status
+    invoices[invoiceIndex].status = status;
+    invoices[invoiceIndex].updatedAt = new Date().toISOString();
+    
+    return res.status(200).json({
+      success: true,
+      invoice: {
+        id: invoices[invoiceIndex].id,
+        status: invoices[invoiceIndex].status,
+        updatedAt: invoices[invoiceIndex].updatedAt
+      }
+    });
+  } catch (error) {
+    console.error('Error updating invoice status:', error);
+    return res.status(500).json({ success: false, message: 'Error updating invoice status', error: error.message });
+  }
+});
+
+module.exports = router;
+
+
+// const express = require('express');
+const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
+const { authenticateToken, isFinanceRole } = require('../middleware/auth');
+
+// Set up file storage for PO files
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '../uploads/purchaseorders');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniquePrefix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniquePrefix + '-' + file.originalname);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+});
+
+// PO status constants
+const PO_STATUS = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  SIGNED: 'SIGNED'
+};
+
+// Database mock (replace with actual database operations)
+let poFiles = [];
+
+// Upload a single PO file
+router.post('/api/purchaseorders/upload', authenticateToken, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+    
+    const newPO = {
+      id: uuidv4(),
+      name: req.file.originalname,
+      type: req.file.mimetype,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString(),
+      status: PO_STATUS.PENDING,
+      sender: req.user.email,
+      username: req.user.username,
+      department: req.user.department,
+      uploadedBy: req.user.email,
+      size: (req.file.size / 1024).toFixed(2),
+      lastModified: Date.now(),
+      filePath: req.file.path,
+      signedFilePath: null
+    };
+
+    poFiles.push(newPO);
+
+    return res.status(201).json({
+      success: true,
+      poFile: {
+        ...newPO,
+        filePath: undefined, // Don't expose the file path to the client
+        signedFilePath: undefined
+      }
+    });
+  } catch (error) {
+    console.error('Error uploading PO file:', error);
+    return res.status(500).json({ success: false, message: 'Error uploading PO file', error: error.message });
+  }
+});
+
+// Upload multiple PO files
+router.post('/api/purchaseorders/upload/multiple', authenticateToken, upload.array('files'), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, message: 'No files uploaded' });
+    }
+
+    const uploadedPOFiles = req.files.map(file => {
+      const newPO = {
+        id: uuidv4(),
+        name: file.originalname,
+        type: file.mimetype,
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString(),
+        status: PO_STATUS.PENDING,
+        sender: req.user.email,
+        username: req.user.username,
+        department: req.user.department,
+        uploadedBy: req.user.email,
+        size: (file.size / 1024).toFixed(2),
+        lastModified: Date.now(),
+        filePath: file.path,
+        signedFilePath: null
+      };
+
+      poFiles.push(newPO);
+      return {
+        ...newPO,
+        filePath: undefined, // Don't expose the file path to the client
+        signedFilePath: undefined
+      };
+    });
+
+    return res.status(201).json({
+      success: true,
+      poFiles: uploadedPOFiles
+    });
+  } catch (error) {
+    console.error('Error uploading multiple PO files:', error);
+    return res.status(500).json({ success: false, message: 'Error uploading PO files', error: error.message });
+  }
+});
+
+// Get all PO files visible to the user
+router.get('/api/purchaseorders', authenticateToken, async (req, res) => {
+  try {
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const startIndex = (page - 1) * limit;
+    
+    // Filtering
+    let filteredPOFiles = [...poFiles];
+    
+    if (req.query.status) {
+      filteredPOFiles = filteredPOFiles.filter(file => file.status === req.query.status);
+    }
+    
+    if (req.query.department) {
+      filteredPOFiles = filteredPOFiles.filter(file => file.department === req.query.department);
+    }
+    
+    // Role-based filtering
+    if (req.user.department === 'FINANCE') {
+      // Finance users can see all PO files
+    } else {
+      // For department users, show only PO files from their department
+      filteredPOFiles = filteredPOFiles.filter(file => file.department === req.user.department);
+    }
+    
+    const total = filteredPOFiles.length;
+    
+    // Apply pagination
+    const paginatedPOFiles = filteredPOFiles.slice(startIndex, startIndex + limit);
+    
+    // Remove filePaths from response
+    const sanitizedPOFiles = paginatedPOFiles.map(file => {
+      const { filePath, signedFilePath, ...rest } = file;
+      return {
+        ...rest,
+        hasSignedFile: !!signedFilePath
+      };
+    });
+    
+    return res.status(200).json({
+      poFiles: sanitizedPOFiles,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching PO files:', error);
+    return res.status(500).json({ success: false, message: 'Error fetching PO files', error: error.message });
+  }
+});
+
+// Get PO file by ID
+router.get('/api/purchaseorders/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const poFile = poFiles.find(file => file.id === id);
+    
+    if (!poFile) {
+      return res.status(404).json({ success: false, message: 'PO file not found' });
+    }
+    
+    // Check if user has access to this PO file
+    const hasAccess = req.user.department === 'FINANCE' || poFile.department === req.user.department;
+    
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    
+    const { filePath, signedFilePath, ...sanitizedPOFile } = poFile;
+    
+    return res.status(200).json({
+      ...sanitizedPOFile,
+      downloadUrl: `/api/purchaseorders/${id}/download`,
+      hasSignedFile: !!signedFilePath,
+      signedDownloadUrl: signedFilePath ? `/api/purchaseorders/${id}/download/signed` : null
+    });
+  } catch (error) {
+    console.error('Error fetching PO file:', error);
+    return res.status(500).json({ success: false, message: 'Error fetching PO file', error: error.message });
+  }
+});
+
+// Download original PO file
+router.get('/api/purchaseorders/:id/download', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const poFile = poFiles.find(file => file.id === id);
+    
+    if (!poFile) {
+      return res.status(404).json({ success: false, message: 'PO file not found' });
+    }
+    
+    // Check if user has access to this PO file
+    const hasAccess = req.user.department === 'FINANCE' || poFile.department === req.user.department;
+    
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    
+    return res.download(poFile.filePath, poFile.name);
+  } catch (error) {
+    console.error('Error downloading PO file:', error);
+    return res.status(500).json({ success: false, message: 'Error downloading PO file', error: error.message });
+  }
+});
+
+// Download signed PO file
+router.get('/api/purchaseorders/:id/download/signed', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const poFile = poFiles.find(file => file.id === id);
+    
+    if (!poFile) {
+      return res.status(404).json({ success: false, message: 'PO file not found' });
+    }
+    
+    if (!poFile.signedFilePath) {
+      return res.status(404).json({ success: false, message: 'Signed PO file not found' });
+    }
+    
+    // Check if user has access to this PO file
+    const hasAccess = req.user.department === 'FINANCE' || poFile.department === req.user.department;
+    
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    
+    // Extract filename or generate one for the signed file
+    const signedFileName = poFile.signedFileName || `signed_${poFile.name}`;
+    
+    return res.download(poFile.signedFilePath, signedFileName);
+  } catch (error) {
+    console.error('Error downloading signed PO file:', error);
+    return res.status(500).json({ success: false, message: 'Error downloading signed PO file', error: error.message });
+  }
+});
+
+// Update PO file status (Approve)
+router.patch('/api/purchaseorders/:id/approve', authenticateToken, isFinanceRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const poFileIndex = poFiles.findIndex(file => file.id === id);
+    
+    if (poFileIndex === -1) {
+      return res.status(404).json({ success: false, message: 'PO file not found' });
+    }
+    
+    // Only pending files can be approved
+    if (poFiles[poFileIndex].status !== PO_STATUS.PENDING) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Only pending PO files can be approved' 
+      });
+    }
+    
+    // Update the PO file status
+    poFiles[poFileIndex].status = PO_STATUS.APPROVED;
+    poFiles[poFileIndex].approvedAt = new Date().toISOString();
+    poFiles[poFileIndex].approvedBy = req.user.email;
+    
+    return res.status(200).json({
+      success: true,
+      poFile: {
+        id: poFiles[poFileIndex].id,
+        status: poFiles[poFileIndex].status,
+        approvedAt: poFiles[poFileIndex].approvedAt,
+        approvedBy: poFiles[poFileIndex].approvedBy
+      }
+    });
+  } catch (error) {
+    console.error('Error approving PO file:', error);
+    return res.status(500).json({ success: false, message: 'Error approving PO file', error: error.message });
+  }
+});
+
+// Upload signed PO file
+router.post('/api/purchaseorders/:id/upload-signed', authenticateToken, upload.single('file'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+    
+    const poFileIndex = poFiles.findIndex(file => file.id === id);
+    
+    if (poFileIndex === -1) {
+      return res.status(404).json({ success: false, message: 'PO file not found' });
+    }
+    
+    // Check if the user has permission to upload a signed file
+    const hasAccess = req.user.department === 'FINANCE';
+    
+    if (!hasAccess) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    
+    // Update the PO file with signed file info
+    poFiles[poFileIndex].status = PO_STATUS.SIGNED;
+    poFiles[poFileIndex].signedAt = new Date().toISOString();
+    poFiles[poFileIndex].signedBy = req.user.email;
+    poFiles[poFileIndex].signedFilePath = req.file.path;
+    poFiles[poFileIndex].signedFileName = req.file.originalname;
+    poFiles[poFileIndex].signedFileType = req.file.mimetype;
+    
+    return res.status(200).json({
+      success: true,
+      poFile: {
+        id: poFiles[poFileIndex].id,
+        status: poFiles[poFileIndex].status,
+        signedAt: poFiles[poFileIndex].signedAt,
+        signedBy: poFiles[poFileIndex].signedBy,
+        signedFileName: poFiles[poFileIndex].signedFileName
+      }
+    });
+  } catch (error) {
+    console.error('Error uploading signed PO file:', error);
+    return res.status(500).json({ success: false, message: 'Error uploading signed PO file', error: error.message });
+  }
+});
+
+module.exports = router;
+
+// auth.js - Authentication API routes
+const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const { pool } = require('../db');
+const auth = require('../middleware/auth');
+
+// Environment variables should be set in .env file
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
+const JWT_EXPIRE = process.env.JWT_EXPIRE || '1d';
+
+/**
+ * @route   POST api/auth/login
+ * @desc    Login user and get token
+ * @access  Public
+ */
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  // Validate request body
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Please provide email and password' });
+  }
+
+  try {
+    // Check if user exists
+    const userResult = await pool.query(
+      'SELECT id, email, password, name, username, department, role FROM users WHERE email = $1',
+      [email]
+    );
+
+    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    // Validate password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    // Create and return JWT token
+    const payload = {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        department: user.department
+      }
+    };
+
+    jwt.sign(
+      payload,
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRE },
+      (err, token) => {
+        if (err) throw err;
+        
+        // Return user info and token
+        const userInfo = {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          username: user.username,
+          department: user.department,
+          role: user.role
+        };
+        
+        res.json({ token, user: userInfo });
+      }
+    );
+  } catch (err) {
+    console.error('Login error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * @route   GET api/auth/me
+ * @desc    Get current user's info
+ * @access  Private
+ */
+router.get('/me', auth, async (req, res) => {
+  try {
+    const userResult = await pool.query(
+      'SELECT id, name, email, username, department, role FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error('Get user error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * @route   PUT api/auth/change-password
+ * @desc    Change user password
+ * @access  Private
+ */
+router.put('/change-password', auth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ message: 'Please provide current password and new password' });
+  }
+
+  try {
+    // Get user with password
+    const userResult = await pool.query(
+      'SELECT password FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password
+    await pool.query(
+      'UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2',
+      [hashedPassword, req.user.id]
+    );
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('Change password error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+module.exports = router;
+
+// users.js - User management API routes
+const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcrypt');
+const { pool } = require('../db');
+const auth = require('../middleware/auth');
+
+// Roles and departments constants (matching frontend)
+const ROLES = {
+  FINANCE_REVIEWER_1: 'FINANCE_REVIEWER_1',
+  FINANCE_REVIEWER_2: 'FINANCE_REVIEWER_2',
+  FINANCE_REVIEWER_3: 'FINANCE_REVIEWER_3',
+  FINANCE_REVIEWER_4: 'FINANCE_REVIEWER_4',
+  EXCOBERS_REVIEWER: 'EXCOBERS_REVIEWER',
+  DEPARTMENT_USER: 'DEPARTMENT_USER',
+};
+
+const DEPARTMENTS = {
+  FINANCE: 'FINANCE',
+  IT: 'IT',
+  HR: 'HR',
+  OPERATIONS: 'OPERATIONS',
+  GLOBALMARKET: 'GLOBALMARKET',
+  MARKETTING: 'MARKETTING',
+  LEGAL: 'LEGAL',
+  COMPLIANCE: 'COMPLIANCE',
+  EXCOBERS: 'EXCOBERS',
+};
+
+// Middleware to check if user is an admin (assuming Finance reviewers have admin privileges)
+const isAdmin = async (req, res, next) => {
+  try {
+    // Get user details
+    const userResult = await pool.query(
+      'SELECT role FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if user is a finance reviewer (admin)
+    const isFinanceReviewer = user.role.startsWith('FINANCE_REVIEWER_');
+    if (!isFinanceReviewer) {
+      return res.status(403).json({ message: 'Not authorized to manage users' });
+    }
+
+    next();
+  } catch (err) {
+    console.error('Admin check error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
+ * @route   POST api/users
+ * @desc    Add a new user
+ * @access  Private/Admin
+ */
+router.post('/', auth, isAdmin, async (req, res) => {
+  const { name, email, password, username, department, role } = req.body;
+
+  // Validate request body
+  if (!name || !email || !password || !username || !department || !role) {
+    return res.status(400).json({ message: 'All fields are required' });
+  }
+
+  // Validate department and role
+  if (!Object.values(DEPARTMENTS).includes(department)) {
+    return res.status(400).json({ message: 'Invalid department' });
+  }
+
+  if (!Object.values(ROLES).includes(role)) {
+    return res.status(400).json({ message: 'Invalid role' });
+  }
+
+  try {
+    // Check if user exists
+    const userExists = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (userExists.rows.length > 0) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create user
+    const userResult = await pool.query(
+      `INSERT INTO users 
+       (name, email, password, username, department, role, created_at, updated_at) 
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) 
+       RETURNING id, name, email, username, department, role`,
+      [name, email, hashedPassword, username, department, role]
+    );
+
+    const newUser = userResult.rows[0];
+    res.status(201).json(newUser);
+  } catch (err) {
+    console.error('Add user error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * @route   GET api/users
+ * @desc    Get all users
+ * @access  Private/Admin
+ */
+router.get('/', auth, isAdmin, async (req, res) => {
+  try {
+    const usersResult = await pool.query(
+      'SELECT id, name, email, username, department, role, created_at, updated_at FROM users'
+    );
+
+    res.json(usersResult.rows);
+  } catch (err) {
+    console.error('Get users error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * @route   GET api/users/:id
+ * @desc    Get user by ID
+ * @access  Private/Admin
+ */
+router.get('/:id', auth, isAdmin, async (req, res) => {
+  try {
+    const userResult = await pool.query(
+      'SELECT id, name, email, username, department, role, created_at, updated_at FROM users WHERE id = $1',
+      [req.params.id]
+    );
+
+    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error('Get user error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * @route   PUT api/users/:id
+ * @desc    Update user
+ * @access  Private/Admin
+ */
+router.put('/:id', auth, isAdmin, async (req, res) => {
+  const { name, email, username, department, role } = req.body;
+  const userId = req.params.id;
+
+  // Validate request body
+  if (!name || !email || !username || !department || !role) {
+    return res.status(400).json({ message: 'All fields are required' });
+  }
+
+  // Validate department and role
+  if (!Object.values(DEPARTMENTS).includes(department)) {
+    return res.status(400).json({ message: 'Invalid department' });
+  }
+
+  if (!Object.values(ROLES).includes(role)) {
+    return res.status(400).json({ message: 'Invalid role' });
+  }
+
+  try {
+    // Check if user exists
+    const userExists = await pool.query(
+      'SELECT id FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userExists.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Update user
+    const userResult = await pool.query(
+      `UPDATE users 
+       SET name = $1, email = $2, username = $3, department = $4, role = $5, updated_at = NOW() 
+       WHERE id = $6 
+       RETURNING id, name, email, username, department, role`,
+      [name, email, username, department, role, userId]
+    );
+
+    const updatedUser = userResult.rows[0];
+    res.json(updatedUser);
+  } catch (err) {
+    console.error('Update user error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * @route   PUT api/users/:id/password
+ * @desc    Update user password
+ * @access  Private/Admin
+ */
+router.put('/:id/password', auth, isAdmin, async (req, res) => {
+  const { password } = req.body;
+  const userId = req.params.id;
+
+  // Validate request body
+  if (!password) {
+    return res.status(400).json({ message: 'Password is required' });
+  }
+
+  try {
+    // Check if user exists
+    const userExists = await pool.query(
+      'SELECT id FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userExists.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Update password
+    await pool.query(
+      'UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2',
+      [hashedPassword, userId]
+    );
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('Update password error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * @route   DELETE api/users/:id
+ * @desc    Delete user
+ * @access  Private/Admin
+ */
+router.delete('/:id', auth, isAdmin, async (req, res) => {
+  const userId = req.params.id;
+
+  try {
+    // Check if user exists
+    const userExists = await pool.query(
+      'SELECT id FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userExists.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Delete user
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (err) {
+    console.error('Delete user error:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/**
+ * @route   GET api/users/constants
+ * @desc    Get roles and departments constants
+ * @access  Private
+ */
+router.get('/constants', auth, async (req, res) => {
+  res.json({ ROLES, DEPARTMENTS });
+});
+
+module.exports = router;
+
+// db.js - Database connection
+const { Pool } = require('pg');
+
+// Use environment variables for database configuration
+const pool = new Pool({
+  user: process.env.DB_USER || 'postgres',
+  host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_NAME || 'fnb_app',
+  password: process.env.DB_PASSWORD || 'password',
+  port: process.env.DB_PORT || 5432,
+});
+
+// Test database connection
+const testConnection = async () => {
+  try {
+    const client = await pool.connect();
+    console.log('Database connection successful');
+    client.release();
+  } catch (err) {
+    console.error('Database connection error:', err.message);
+  }
+};
+
+// Initialize database tables if they don't exist
+const initDatabase = async () => {
+  try {
+    const client = await pool.connect();
+    
+    // Create users table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        password VARCHAR(100) NOT NULL,
+        username VARCHAR(50) NOT NULL,
+        department VARCHAR(50) NOT NULL,
+        role VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP NOT NULL,
+        updated_at TIMESTAMP NOT NULL
+      )
+    `);
+    
+    // Check if super admin user exists, if not create default admin
+    const adminExists = await client.query(
+      "SELECT id FROM users WHERE email = 'admin@fnb.co.za'"
+    );
+    
+    if (adminExists.rows.length === 0) {
+      const bcrypt = require('bcrypt');
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash('admin123', salt);
+      
+      await client.query(`
+        INSERT INTO users (name, email, password, username, department, role, created_at, updated_at)
+        VALUES ('Admin', 'admin@fnb.co.za', $1, 'admin', 'FINANCE', 'FINANCE_REVIEWER_1', NOW(), NOW())
+      `, [hashedPassword]);
+      
+      console.log('Default admin user created');
+    }
+    
+    console.log('Database initialized successfully');
+    client.release();
+  } catch (err) {
+    console.error('Database initialization error:', err.message);
+  }
+};
+
+module.exports = { pool, testConnection, initDatabase };
+
+//  middleware/auth.js
+const jwt = require('jsonwebtoken');
+
+// Environment variable for JWT secret
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
+
+module.exports = function(req, res, next) {
+  // Get token from header
+  const token = req.header('x-auth-token');
+
+  // Check if no token
+  if (!token) {
+    return res.status(401).json({ message: 'No token, authorization denied' });
+  }
+
+  try {
+    // Verify token
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Add user from payload to request
+    req.user = decoded.user;
+    next();
+  } catch (err) {
+    res.status(401).json({ message: 'Token is not valid' });
+  }
+};
+
+// server.js - Main application entry point
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
+const { testConnection, initDatabase } = require('./db');
+
+// Load environment variables
+dotenv.config();
+
+// Initialize the app
+const app = express();
+
+// Configure middleware
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Define routes
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users'));
+
+// Test route
+app.get('/', (req, res) => {
+  res.json({ message: 'Welcome to FNB API' });
+});
+
+// Initialize database and start server
+const PORT = process.env.PORT || 5000;
+
+const startServer = async () => {
+  // Test database connection
+  await testConnection();
+  
+  // Initialize database tables
+  await initDatabase();
+  
+  // Start server
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+};
+
+startServer().catch(err => {
+  console.error('Server startup error:', err.message);
+});
