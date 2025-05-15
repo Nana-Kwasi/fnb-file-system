@@ -206,9 +206,9 @@
 
 // export default Dashboard;
 
-
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Users, FileText, LogOut, Download, CheckSquare } from 'lucide-react';
+import Users from '../Users/Users';
+import { BarChart3, Users as UsersIcon, FileText, LogOut, Download, CheckSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Statistics from '../Statistics/Statistics';
 import Upload from '../Upload/Upload';
@@ -226,6 +226,18 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { user, logout, ROLES } = useAuth();
   const { invoices, INVOICE_STATUS, canEditInvoice, updateInvoiceStatus, downloadInvoice } = useInvoices();
+
+  // Check if user is admin (username or email is 'admin')
+  const isAdmin = user?.username === 'admin' || user?.email === 'admin';
+
+  // Set default screen based on admin status
+  useEffect(() => {
+    if (isAdmin) {
+      setCurrentScreen('users');
+    } else {
+      setCurrentScreen('dashboard');
+    }
+  }, [isAdmin]);
 
   const handleLogout = () => {
     logout();
@@ -253,31 +265,6 @@ const Dashboard = () => {
     }
   };
 
-  // const getNextReviewer = (status, amount) => {
-  //   const MOCK_USERS = [
-  //     { role: ROLES.FINANCE_REVIEWER_1, username: 'Quachi' },
-  //     { role: ROLES.FINANCE_REVIEWER_2, username: 'Vanessa' },
-  //     { role: ROLES.FINANCE_REVIEWER_3, username: 'Alex' },
-  //     { role: ROLES.EXCOBERS_REVIEWER, username: 'John Executive' }
-  //   ];
-
-  //   switch (status) {
-  //     case INVOICE_STATUS.PENDING:
-  //       return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_1)?.username;
-  //     case INVOICE_STATUS.REVIEW_1:
-  //       return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_2)?.username;
-  //     case INVOICE_STATUS.REVIEW_2:
-  //       return parseFloat(amount) > 10000 ? 
-  //         MOCK_USERS.find(u => u.role === ROLES.EXCOBERS_REVIEWER)?.username :
-  //         MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_3)?.username;
-  //     case INVOICE_STATUS.REVIEW_3:
-  //       return 'Payment Processing';
-  //     case INVOICE_STATUS.PAID:
-  //       return 'PAID';
-  //     default:
-  //       return 'Unknown';
-  //   }
-  // };
   const getNextReviewer = (status) => {
     const MOCK_USERS = [
       { role: ROLES.FINANCE_REVIEWER_1, username: 'Quachi' },
@@ -371,7 +358,7 @@ const Dashboard = () => {
 
   const PaymentTable = () => (
     <div className='table-container'>
-    <div class="table-wrapper">
+    <div className="table-wrapper">
     <table>
       <thead>
         <tr>
@@ -564,7 +551,7 @@ const Dashboard = () => {
   };
   const DepartmentTable = () => (
     <div className='table-container'>
-    <div class="table-wrapper">
+    <div className="table-wrapper">
     <table>
       <thead>
         <tr>
@@ -644,6 +631,19 @@ const Dashboard = () => {
   };
 
   const getNavigationItems = () => {
+    // If user is admin, only show Users menu item
+    if (isAdmin) {
+      return [
+        {
+          id: 'users',
+          icon: <UsersIcon size={20} />,
+          label: 'Users',
+          visible: true
+        }
+      ];
+    }
+    
+    // For non-admin users, show all items except Users
     const items = [
       {
         id: 'dashboard',
@@ -676,36 +676,10 @@ const Dashboard = () => {
         visible: true
       }
     ];
-
+  
     return items.filter(item => item.visible);
   };
-
-
-
-
-
-
-
-
-
   
-
-  // const renderScreen = () => {
-  //   switch(currentScreen) {
-  //     case 'dashboard':
-  //       return <DashboardContent />;
-  //     case 'statistics':
-  //       return <Statistics />;
-  //     case 'Upload':
-  //       return user?.role === 'DEPARTMENT_USER' ? <Upload /> : null;
-  //     case 'reports':
-  //       return <Reports />;
-  //       case 'POScreen':
-  //         return <POScreen />;
-  //     default:
-  //       return <DashboardContent />;
-  //   }
-  // };
   const renderScreen = () => {
     switch(currentScreen) {
       case 'dashboard':
@@ -718,10 +692,13 @@ const Dashboard = () => {
         return <Reports />;
       case 'POScreen':
         return <POScreen />;
+      case 'users':
+        return <Users />;
       default:
         return <DashboardContent />;
     }
   };
+  
   return (
     <div className="dashboard-container">
       <div className="dashboard-wrapper">

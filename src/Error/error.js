@@ -2494,8 +2494,6 @@ Error: Route.post() requires a callback function but got a [object Undefined]
 Node.js v22.13.1
 PS C:\Users\f8877557\file-backend>
 
-
-
 //invoice controller
 const express = require('express');
 const router = express.Router();
@@ -2750,7 +2748,7 @@ router.get('/api/invoices/:id/download', authenticateToken, async (req, res) => 
   }
 });
 
-
+// Update invoice status
 router.patch('/api/invoices/:id/status', authenticateToken, isFinanceRole, async (req, res) => {
   try {
     const { id } = req.params;
@@ -2808,5 +2806,7 @@ router.patch('/api/invoices/:id/status', authenticateToken, isFinanceRole, async
     return res.status(500).json({ success: false, message: 'Error updating invoice status', error: error.message });
   }
 });
+
+// Add your comment route or other routes here
 
 module.exports = router;

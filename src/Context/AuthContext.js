@@ -91,7 +91,7 @@ const MOCK_USERS = [
       email: 'franciskontoh@fnb.co.za',
       password: '123456',
       name: 'IT User',
-      username: 'Francis Kontoh',
+      username: 'admin',
       department: DEPARTMENTS.IT,
       role: ROLES.DEPARTMENT_USER,
     },
