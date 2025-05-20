@@ -1164,18 +1164,9 @@ export default Analytics;
 }
 
 //dashboard
-
 import React, { useState, useEffect, useRef } from "react";
-import { 
-  AiOutlineUser, 
-  AiOutlineTeam, 
-  AiOutlineLeft, 
-  AiOutlineRight, 
-  AiOutlineLogout, 
-  AiOutlineDown, 
-  AiOutlinePieChart 
-} from "react-icons/ai";
-import { Line, Bar, Pie, Scatter, Bubble } from "react-chartjs-2";
+import { AiOutlineUser, AiOutlineTeam, AiOutlineLeft, AiOutlineRight, AiOutlineLogout, AiOutlineDown, AiOutlinePieChart } from "react-icons/ai";
+import { Line, Bar, Pie, Bubble, Scatter } from "react-chartjs-2";
 import { useNavigate } from "react-router-dom";
 import { useVisitor } from "../context/VisitorContext";
 import {
@@ -1194,19 +1185,19 @@ import {
 } from "chart.js";
 import "../dashboard.css";
 
-// Register Chart.js components
+// Add RadialLinearScale and BubbleController to ChartJS registration
 ChartJS.register(
   CategoryScale, 
   LinearScale, 
   PointElement, 
   LineElement, 
   BarElement, 
-  ArcElement, 
+  ArcElement,
+  RadialLinearScale,  // Added for RadialBar chart
+  BubbleController,   // Added for Bubble chart
   Title, 
   Tooltip, 
-  Legend,
-  RadialLinearScale,
-  BubbleController
+  Legend
 );
 
 const Dashboard = () => {
@@ -1228,20 +1219,12 @@ const Dashboard = () => {
     user
   } = useVisitor();
 
-  // Create refs for chart instances to properly clean them up
-  const lineChartRef = useRef(null);
-  const barChartRef = useRef(null);
-  const pieChartRef = useRef(null);
-  const radialChartRef = useRef(null);
-  const scatterChartRef = useRef(null);
-  const bubbleChartRef = useRef(null);
-  const histogramChartRef = useRef(null);
-
-  // Safely access data from branchData with fallbacks
-  const analyticsData = branchData?.analyticsData || [];
-  const totalVisitors = branchData?.totalVisitors || 0;
-  const visitorsToday = branchData?.visitorsToday || 0;
-  const todayVisitorsData = branchData?.todayVisitorsData || [];
+  const { 
+    analyticsData, 
+    totalVisitors, 
+    visitorsToday, 
+    todayVisitorsData 
+  } = branchData;
 
   // Check if user is authenticated
   useEffect(() => {
@@ -1264,28 +1247,6 @@ const Dashboard = () => {
     };
   }, []);
 
-  // Cleanup function for charts when component unmounts
-  useEffect(() => {
-    return () => {
-      // Destroy all chart instances on unmount to prevent memory leaks
-      const chartRefs = [
-        lineChartRef, 
-        barChartRef, 
-        pieChartRef, 
-        radialChartRef, 
-        scatterChartRef, 
-        bubbleChartRef,
-        histogramChartRef
-      ];
-      
-      chartRefs.forEach(ref => {
-        if (ref.current && ref.current.chartInstance) {
-          ref.current.chartInstance.destroy();
-        }
-      });
-    };
-  }, []);
-
   const handleLogout = () => {
     logout();
     navigate("/login");
@@ -1302,19 +1263,11 @@ const Dashboard = () => {
   const closeModal = () => setModalVisible(false);
 
   const previousMonth = () => {
-    setCurrentDate(prev => {
-      const newDate = new Date(prev);
-      newDate.setMonth(newDate.getMonth() - 1);
-      return newDate;
-    });
+    setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)));
   };
 
   const nextMonth = () => {
-    setCurrentDate(prev => {
-      const newDate = new Date(prev);
-      newDate.setMonth(newDate.getMonth() + 1);
-      return newDate;
-    });
+    setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)));
   };
 
   const generateCalendarDays = () => {
@@ -1351,7 +1304,6 @@ const Dashboard = () => {
     return calendarDays;
   };
 
-  // Bar chart data
   const barData = {
     labels: analyticsData?.map((item) => item.month) || [],
     datasets: [
@@ -1365,7 +1317,6 @@ const Dashboard = () => {
     ],
   };
 
-  // Line chart data
   const lineData = {
     labels: analyticsData?.map((item) => item.month) || [],
     datasets: [
@@ -1381,7 +1332,7 @@ const Dashboard = () => {
     ],
   };
 
-  // Pie chart data
+  // Pie chart data using the same analytics data
   const pieData = {
     labels: analyticsData?.map((item) => item.month) || [],
     datasets: [
@@ -1413,125 +1364,65 @@ const Dashboard = () => {
     ],
   };
 
-  // Updated PolarArea data (replacing RadialBar chart that was causing errors)
-  const polarAreaData = {
-    labels: analyticsData?.map((item) => item.month).slice(0, 6) || [],
+  // NEW: RadialBar chart data (using existing analytics data)
+  const radialBarData = {
+    labels: analyticsData?.map((item) => item.month) || [],
     datasets: [
       {
-        label: 'Visitor Distribution',
-        data: analyticsData?.map((item) => item.visits).slice(0, 6) || [],
+        label: 'Visitors Goal Completion',
+        data: analyticsData?.map((item) => {
+          // Calculate percentage based on a fictitious goal of 1000 visitors per month
+          const goalPerMonth = 1000;
+          return Math.min(Math.round((item.visits / goalPerMonth) * 100), 100);
+        }) || [],
         backgroundColor: [
-          'rgba(52, 152, 219, 0.7)',
-          'rgba(46, 204, 113, 0.7)',
-          'rgba(155, 89, 182, 0.7)',
-          'rgba(241, 196, 15, 0.7)',
-          'rgba(231, 76, 60, 0.7)',
-          'rgba(230, 126, 34, 0.7)',
+          'rgba(26, 188, 156, 0.7)',  // Turquoise
+          'rgba(52, 152, 219, 0.7)',  // Blue
+          'rgba(155, 89, 182, 0.7)',  // Purple
+          'rgba(241, 196, 15, 0.7)',  // Yellow
+          'rgba(230, 126, 34, 0.7)',  // Orange
+          'rgba(231, 76, 60, 0.7)',   // Red
+          'rgba(52, 73, 94, 0.7)',    // Dark blue
+          'rgba(149, 165, 166, 0.7)', // Gray
+          'rgba(243, 156, 18, 0.7)',  // Orange-yellow
+          'rgba(211, 84, 0, 0.7)',    // Dark orange
+          'rgba(46, 204, 113, 0.7)',  // Green
+          'rgba(22, 160, 133, 0.7)',  // Dark turquoise
         ],
-        borderWidth: 1,
-        borderColor: [
-          '#3498db', '#2ecc71', '#9b59b6', 
-          '#f1c40f', '#e74c3c', '#e67e22',
-        ],
+        borderWidth: 2,
+        borderColor: '#fff',
       }
-    ],
+    ]
   };
 
-  // Scatter chart data
-  const scatterData = {
-    datasets: [
-      {
-        label: 'Day vs. Visitors',
-        data: analyticsData?.map((item, index) => ({
-          x: index + 1,  // Day/position in the dataset
-          y: item.visits,  // Number of visitors
-        })) || [],
-        backgroundColor: 'rgba(41, 128, 185, 0.8)',
-        borderColor: '#2980b9',
-        pointRadius: 8,
-        pointHoverRadius: 12,
-      }
-    ],
-  };
-
-  // Bubble chart data
+  // NEW: Bubble chart data (using existing analytics data with additional dimension)
   const bubbleData = {
     datasets: [
       {
-        label: 'Month Visitors (Bubble Size = Relative Importance)',
-        data: analyticsData?.map((item, index) => ({
-          x: index + 1,  // Position in month sequence
-          y: item.visits,  // Number of visitors
-          r: Math.sqrt(item.visits) / 2,  // Radius proportional to visits
-        })) || [],
+        label: 'Visitor Analysis',
+        data: analyticsData?.map((item, index) => {
+          // Generate some variation for the bubble size based on visits
+          const variance = Math.random() * 0.3 + 0.85; // Random factor between 0.85 and 1.15
+          return {
+            x: index, // X-axis: month index
+            y: item.visits, // Y-axis: visitor count
+            r: Math.sqrt(item.visits) * variance / 2 // Radius: square root of visits with some variance, scaled down
+          };
+        }) || [],
         backgroundColor: analyticsData?.map((_, index) => {
-          const colors = [
-            'rgba(52, 152, 219, 0.7)',
-            'rgba(46, 204, 113, 0.7)',
-            'rgba(155, 89, 182, 0.7)',
-            'rgba(241, 196, 15, 0.7)',
-            'rgba(231, 76, 60, 0.7)',
-            'rgba(230, 126, 34, 0.7)',
-            'rgba(26, 188, 156, 0.7)',
-            'rgba(52, 73, 94, 0.7)',
-            'rgba(149, 165, 166, 0.7)',
-            'rgba(243, 156, 18, 0.7)',
-            'rgba(211, 84, 0, 0.7)',
-            'rgba(22, 160, 133, 0.7)',
-          ];
-          return colors[index % colors.length];
-        }),
-        borderColor: '#2980b9',
+          // Generate a gradient of colors
+          const hue = (index * 30) % 360;
+          return `hsla(${hue}, 70%, 60%, 0.7)`;
+        }) || [],
+        borderColor: analyticsData?.map((_, index) => {
+          const hue = (index * 30) % 360;
+          return `hsla(${hue}, 70%, 50%, 1)`;
+        }) || [],
+        borderWidth: 1,
       }
-    ],
+    ]
   };
 
-  // Histogram data creation function
-  const createHistogramData = () => {
-    if (!analyticsData || analyticsData.length === 0) return null;
-    
-    const visitorCounts = analyticsData.map(item => item.visits);
-    const min = Math.min(...visitorCounts);
-    const max = Math.max(...visitorCounts);
-    
-    // Need at least some range for binning
-    if (min === max) return null;
-    
-    // Create 5 bins for the histogram
-    const binSize = Math.ceil((max - min) / 5);
-    const bins = Array(5).fill(0);
-    
-    // Count visitors in each bin
-    visitorCounts.forEach(count => {
-      const binIndex = Math.min(Math.floor((count - min) / binSize), 4);
-      bins[binIndex]++;
-    });
-    
-    // Create labels for bins
-    const labels = [];
-    for (let i = 0; i < 5; i++) {
-      const lowerBound = min + (i * binSize);
-      const upperBound = min + ((i + 1) * binSize);
-      labels.push(`${lowerBound}-${upperBound}`);
-    }
-    
-    return {
-      labels,
-      datasets: [
-        {
-          label: 'Frequency of Visitor Counts',
-          data: bins,
-          backgroundColor: 'rgba(155, 89, 182, 0.7)',
-          borderColor: '#8e44ad',
-          borderWidth: 1,
-        }
-      ]
-    };
-  };
-  
-  const histogramData = createHistogramData();
-
-  // Common chart options
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -1545,8 +1436,7 @@ const Dashboard = () => {
       },
       y: {
         grid: { color: "rgba(0, 0, 0, 0.1)" },
-        ticks: { color: "#34495e", font: { size: 12 } },
-        beginAtZero: true,
+        ticks: { color: "#34495e", font: { size: 17 } },
       },
     },
   };
@@ -1576,6 +1466,15 @@ const Dashboard = () => {
         titleFont: {
           size: 16,
           weight: 'bold'
+        },
+        callbacks: {
+          label: function(context) {
+            const label = context.label || '';
+            const value = context.raw || 0;
+            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+            const percentage = Math.round((value / total) * 100);
+            return `${label}: ${value} visitors (${percentage}%)`;
+          }
         }
       },
       title: {
@@ -1600,155 +1499,142 @@ const Dashboard = () => {
     radius: '90%'
   };
 
-  // Polar Area options (Replacing RadialBar options)
-  const polarAreaOptions = {
+  // NEW: RadialBar chart options
+  const radialBarOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        position: 'top',
+        display: false,  // Hide legend for cleaner look
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return `${context.label}: ${context.raw}% of goal`;
+          }
+        }
       },
       title: {
         display: true,
-        text: 'Visitor Distribution by Month',
+        text: 'Monthly Visitor Goal Completion',
         font: {
           size: 16,
           weight: 'bold'
+        },
+        color: '#333',
+        padding: {
+          top: 10,
+          bottom: 10
         }
       }
     },
     scales: {
       r: {
-        beginAtZero: true,
-        pointLabels: {
+        angleLines: {
           display: true,
+          color: 'rgba(0, 0, 0, 0.1)',
+        },
+        suggestedMin: 0,
+        suggestedMax: 100,
+        ticks: {
+          stepSize: 20,
+          backdropColor: 'transparent',
+          color: '#666',
+          font: {
+            size: 10
+          }
+        },
+        grid: {
+          color: 'rgba(0, 0, 0, 0.1)',
+        },
+        pointLabels: {
           font: {
             size: 12
-          }
+          },
+          color: '#333'
         }
       }
     }
   };
 
-  // Scatter chart options
-  const scatterOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      tooltip: {
-        callbacks: {
-          label: function(context) {
-            const index = context.dataIndex;
-            const month = analyticsData && analyticsData[index] ? analyticsData[index].month : 'Unknown';
-            return `${month}: ${context.raw.y} visitors`;
-          }
-        }
-      },
-      title: {
-        display: true,
-        text: 'Visitor Distribution (Scatter)',
-        font: {
-          size: 16,
-          weight: 'bold'
-        }
-      }
-    },
-    scales: {
-      x: {
-        title: {
-          display: true,
-          text: 'Month Index'
-        }
-      },
-      y: {
-        title: {
-          display: true,
-          text: 'Number of Visitors'
-        },
-        beginAtZero: true
-      }
-    }
-  };
-
-  // Bubble chart options
+  // NEW: Bubble chart options
   const bubbleOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      legend: {
+        display: false, // Hide legend for cleaner look
+      },
       tooltip: {
         callbacks: {
           label: function(context) {
-            const index = context.dataIndex;
-            const month = analyticsData && analyticsData[index] ? analyticsData[index].month : 'Unknown';
-            return `${month}: ${context.raw.y} visitors`;
+            const month = analyticsData ? analyticsData[context.dataIndex]?.month : '';
+            const visits = context.raw.y;
+            return `${month}: ${visits} visitors`;
           }
         }
       },
       title: {
         display: true,
-        text: 'Visitor Volume by Month (Bubble)',
+        text: 'Visitor Volume Analysis',
         font: {
           size: 16,
           weight: 'bold'
+        },
+        color: '#333',
+        padding: {
+          top: 10,
+          bottom: 10
         }
       }
     },
     scales: {
       x: {
+        grid: { color: "rgba(0, 0, 0, 0.1)" },
+        ticks: {
+          callback: function(value) {
+            return analyticsData ? analyticsData[value]?.month : '';
+          },
+          color: "#34495e",
+          font: { size: 12 }
+        },
         title: {
           display: true,
-          text: 'Month Index'
+          text: 'Month',
+          color: '#666',
+          font: {
+            size: 14,
+            weight: 'bold'
+          }
         }
       },
       y: {
+        grid: { color: "rgba(0, 0, 0, 0.1)" },
+        ticks: { color: "#34495e", font: { size: 12 } },
         title: {
           display: true,
-          text: 'Number of Visitors'
-        },
-        beginAtZero: true
-      }
-    }
-  };
-
-  // Histogram options
-  const histogramOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-      title: {
-        display: true,
-        text: 'Visitor Count Distribution (Histogram)',
-        font: {
-          size: 16,
-          weight: 'bold'
+          text: 'Number of Visitors',
+          color: '#666',
+          font: {
+            size: 14,
+            weight: 'bold'
+          }
         }
       }
     },
-    scales: {
-      x: {
-        title: {
-          display: true,
-          text: 'Visitor Count Ranges'
-        }
-      },
-      y: {
-        title: {
-          display: true,
-          text: 'Frequency (Number of Months)'
-        },
-        beginAtZero: true
-      }
+    animation: {
+      duration: 2000,
+      easing: 'easeOutQuart'
     }
   };
 
-  // User data helper functions
+  // Get user display name
   const getUserDisplayName = () => {
     if (!user) return '';
     
+    // Use name from user object if available
     if (user.name) {
+      // Format "Lastname, Firstname" to "Firstname Lastname"
       const nameParts = user.name.split(', ');
       if (nameParts.length === 2) {
         return `${nameParts[1]} ${nameParts[0]}`;
@@ -1756,14 +1642,17 @@ const Dashboard = () => {
       return user.name;
     }
     
+    // Fallback to email or userId
     return user.email || user.userId || '';
   };
 
+  // Get user title or role
   const getUserTitle = () => {
     if (!user) return '';
     return user.title || user.role || '';
   };
 
+  // Get user email
   const getUserEmail = () => {
     if (!user) return '';
     return user.email || '';
@@ -1772,7 +1661,12 @@ const Dashboard = () => {
   return (
     <div className="dashboard">
       <div className="dashboard-header">
-        <h1>FNB LOGS ADMIN DASHBOARD FOR {selectedBranchName || 'All Branches'}</h1>
+        <h1>FNB LOGS ADMIN DASHBOARD FOR {selectedBranchName}</h1>
+        
+        {selectedBranch && (
+          <div className="branch-display">
+          </div>
+        )}
         
         {/* User profile dropdown */}
         <div className="user-profile-dropdown" ref={dropdownRef}>
@@ -1856,7 +1750,7 @@ const Dashboard = () => {
                 <img src="/group.png" alt="Total Visitors" className="stat-icon" />
                 <h3>Total Visitors</h3>
                 <p>{totalVisitors}</p>
-                {selectedBranchName && <span className="branch-indicator">{selectedBranchName}</span>}
+                {selectedBranch && <span className="branch-indicator">{selectedBranchName}</span>}
               </div>
               
               <div className="stat-card special">
@@ -1874,128 +1768,72 @@ const Dashboard = () => {
                 ) : (
                   <p>No data available</p>
                 )}
-                {selectedBranchName && <span className="branch-indicator">{selectedBranchName}</span>}
+                {selectedBranch && <span className="branch-indicator">{selectedBranchName}</span>}
               </div>
             </div>
   
             {/* Pie Chart */}
             <div className="pie-chart-container">
               <h3>
-                Visitor Distribution {selectedBranchName ? `- ${selectedBranchName}` : ''}
+                Visitor Distribution {selectedBranch ? `- ${selectedBranchName}` : ''}
               </h3>
               <div className="pie-chart-wrapper">
-                {analyticsData && analyticsData.length > 0 ? (
-                  <Pie 
-                    ref={pieChartRef}
-                    data={pieData} 
-                    options={pieChartOptions} 
-                  />
-                ) : (
-                  <p>No data available for pie chart</p>
-                )}
+                <Pie data={pieData} options={pieChartOptions} />
               </div>
             </div>
           </div>
   
+          {/* Original charts container */}
           <div className="charts-container">
             <div className="charts">
               <div className="chart-container">
                 <h3>
-                  Monthly Visitors {selectedBranchName ? `- ${selectedBranchName}` : ''}
+                  Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
                 </h3>
-                {analyticsData && analyticsData.length > 0 ? (
-                  <Line 
-                    ref={lineChartRef}
-                    data={lineData} 
-                    options={chartOptions} 
-                  />
-                ) : (
-                  <p>No data available for line chart</p>
-                )}
+                <Line data={lineData} options={chartOptions} />
               </div>
               <div className="chart-container">
                 <h3>
-                  Monthly Visitors {selectedBranchName ? `- ${selectedBranchName}` : ''}
+                  Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
                 </h3>
-                {analyticsData && analyticsData.length > 0 ? (
-                  <Bar 
-                    ref={barChartRef}
-                    data={barData} 
-                    options={chartOptions} 
-                  />
-                ) : (
-                  <p>No data available for bar chart</p>
-                )}
+                <Bar data={barData} options={chartOptions} />
               </div>
             </div>
           </div>
 
-          {/* Polar Area Chart & Histogram Chart Container */}
+          {/* NEW: RadialBar and Bubble charts container */}
           <div className="charts-container">
             <div className="charts">
+              {/* RadialBar Chart */}
               <div className="chart-container">
                 <h3>
-                  Polar Area Chart {selectedBranchName ? `- ${selectedBranchName}` : ''}
+                  Visitor Goal Completion {selectedBranch ? `- ${selectedBranchName}` : ''}
                 </h3>
                 <div className="radial-chart-wrapper">
-                  {analyticsData && analyticsData.length > 0 ? (
-                    <Pie 
-                      ref={radialChartRef}
-                      data={polarAreaData} 
-                      options={polarAreaOptions} 
-                    />
-                  ) : (
-                    <p>No data available for polar area chart</p>
-                  )}
+                  {/* Use the radar chart type from react-chartjs-2 for a RadialBar presentation */}
+                  <Scatter 
+                    data={radialBarData} 
+                    options={{
+                      ...radialBarOptions,
+                      scales: {
+                        r: {
+                          ...radialBarOptions.scales.r,
+                          type: 'radialLinear'
+                        }
+                      }
+                    }} 
+                  />
                 </div>
               </div>
+              
+              {/* Bubble Chart */}
               <div className="chart-container">
                 <h3>
-                  Histogram Chart {selectedBranchName ? `- ${selectedBranchName}` : ''}
+                  Visitor Volume Analysis {selectedBranch ? `- ${selectedBranchName}` : ''}
                 </h3>
-                {histogramData ? (
-                  <Bar 
-                    ref={histogramChartRef}
-                    data={histogramData} 
-                    options={histogramOptions} 
-                  />
-                ) : (
-                  <p>Insufficient data for histogram</p>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          {/* Scatter Chart & Bubble Chart Container */}
-          <div className="charts-container">
-            <div className="charts">
-              <div className="chart-container">
-                <h3>
-                  Scatter Chart {selectedBranchName ? `- ${selectedBranchName}` : ''}
-                </h3>
-                {analyticsData && analyticsData.length > 0 ? (
-                  <Scatter 
-                    ref={scatterChartRef}
-                    data={scatterData} 
-                    options={scatterOptions} 
-                  />
-                ) : (
-                  <p>No data available for scatter chart</p>
-                )}
-              </div>
-              <div className="chart-container">
-                <h3>
-                  Bubble Chart {selectedBranchName ? `- ${selectedBranchName}` : ''}
-                </h3>
-                {analyticsData && analyticsData.length > 0 ? (
-                  <Bubble 
-                    ref={bubbleChartRef}
-                    data={bubbleData} 
-                    options={bubbleOptions} 
-                  />
-                ) : (
-                  <p>No data available for bubble chart</p>
-                )}
+                <div className="bubble-chart-wrapper">
+                  <Bubble data={bubbleData} options={bubbleOptions} />
+                </div>
               </div>
             </div>
           </div>
@@ -2005,7 +1843,7 @@ const Dashboard = () => {
               <div className="modal-content">
                 <div className="modal-header">
                   <h2 className="modal-title">
-                    Today's Visitors {selectedBranchName ? `- ${selectedBranchName}` : ''}
+                    Today's Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
                   </h2>
                   <button className="close-button" onClick={closeModal}>&times;</button>
                 </div>
@@ -2028,17 +1866,17 @@ const Dashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {todayVisitorsData.map((visitor, idx) => (
-                          <tr key={visitor.id || visitor.telephone || idx}>
-                            <td>{visitor.name || 'N/A'}</td>
-                            <td>{visitor.company || 'N/A'}</td>
-                            <td>{visitor.purpose || 'N/A'}</td>
-                            <td>{visitor.reason || 'N/A'}</td>
-                            <td>{visitor.department || 'N/A'}</td>
-                            <td>{visitor.timeIn || visitor.timein || 'N/A'}</td>
-                            <td>{visitor.timeOut || visitor.timeout || 'N/A'}</td>
-                            <td>{visitor.telephone || 'N/A'}</td>
-                            <td>{visitor.branchname || visitor.branch || 'N/A'}</td>
+                        {todayVisitorsData.map((visitor) => (
+                          <tr key={visitor.id || visitor.telephone}>
+                            <td>{visitor.name}</td>
+                            <td>{visitor.company}</td>
+                            <td>{visitor.purpose}</td>
+                            <td>{visitor.reason}</td>
+                            <td>{visitor.department}</td>
+                            <td>{visitor.timeIn || visitor.timein}</td>
+                            <td>{visitor.timeOut || visitor.timeout}</td>
+                            <td>{visitor.telephone}</td>
+                            <td>{visitor.branchname || visitor.branch}</td>
                           </tr>
                         ))}
                       </tbody>
