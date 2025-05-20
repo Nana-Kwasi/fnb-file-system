@@ -1995,3 +1995,46 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+
+//errror
+Uncaught runtime errors:
+×
+ERROR
+Cannot read properties of undefined (reading 'callback')
+TypeError: Cannot read properties of undefined (reading 'callback')
+    at http://localhost:3001/static/js/bundle.js:149467:108
+    at Array.map (<anonymous>)
+    at RadialLinearScale.generateTickLabels (http://localhost:3001/static/js/bundle.js:149466:42)
+    at RadialLinearScale._convertTicksToLabels (http://localhost:3001/static/js/bundle.js:142497:10)
+    at RadialLinearScale.update (http://localhost:3001/static/js/bundle.js:142244:10)
+    at http://localhost:3001/static/js/bundle.js:141499:11
+    at each (http://localhost:3001/static/js/bundle.js:150451:12)
+    at Object.update (http://localhost:3001/static/js/bundle.js:141496:66)
+    at Chart._updateLayout (http://localhost:3001/static/js/bundle.js:144331:13)
+    at Chart.update (http://localhost:3001/static/js/bundle.js:144253:10)
+ERROR
+Canvas is already in use. Chart with ID '3' must be destroyed before the canvas with ID '' can be reused.
+    at new Chart (http://localhost:3001/static/js/bundle.js:143953:13)
+    at renderChart (http://localhost:3001/static/js/bundle.js:162138:24)
+    at http://localhost:3001/static/js/bundle.js:162185:5
+    at commitHookEffectListMount (http://localhost:3001/static/js/bundle.js:92038:30)
+    at invokePassiveEffectMountInDEV (http://localhost:3001/static/js/bundle.js:93727:17)
+    at invokeEffectsInDev (http://localhost:3001/static/js/bundle.js:95624:15)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:3001/static/js/bundle.js:95607:11)
+    at flushPassiveEffectsImpl (http://localhost:3001/static/js/bundle.js:95380:9)
+    at flushPassiveEffects (http://localhost:3001/static/js/bundle.js:95319:18)
+    at http://localhost:3001/static/js/bundle.js:95134:13
+ERROR
+Cannot read properties of undefined (reading 'callback')
+TypeError: Cannot read properties of undefined (reading 'callback')
+    at http://localhost:3001/static/js/bundle.js:149467:108
+    at Array.map (<anonymous>)
+    at RadialLinearScale.generateTickLabels (http://localhost:3001/static/js/bundle.js:149466:42)
+    at RadialLinearScale._convertTicksToLabels (http://localhost:3001/static/js/bundle.js:142497:10)
+    at RadialLinearScale.update (http://localhost:3001/static/js/bundle.js:142244:10)
+    at http://localhost:3001/static/js/bundle.js:141499:11
+    at each (http://localhost:3001/static/js/bundle.js:150451:12)
+    at Object.update (http://localhost:3001/static/js/bundle.js:141496:66)
+    at Chart._updateLayout (http://localhost:3001/static/js/bundle.js:144331:13)
+    at Chart.update (http://localhost:3001/static/js/bundle.js:144253:10)
