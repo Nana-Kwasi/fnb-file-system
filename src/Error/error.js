@@ -1166,7 +1166,15 @@ export default Analytics;
 //dashboard
 
 import React, { useState, useEffect, useRef } from "react";
-import { AiOutlineUser, AiOutlineTeam, AiOutlineLeft, AiOutlineRight, AiOutlineLogout, AiOutlineDown, AiOutlinePieChart } from "react-icons/ai";
+import { 
+  AiOutlineUser, 
+  AiOutlineTeam, 
+  AiOutlineLeft, 
+  AiOutlineRight, 
+  AiOutlineLogout, 
+  AiOutlineDown, 
+  AiOutlinePieChart 
+} from "react-icons/ai";
 import { Line, Bar, Pie, Scatter, Bubble } from "react-chartjs-2";
 import { useNavigate } from "react-router-dom";
 import { useVisitor } from "../context/VisitorContext";
@@ -1186,18 +1194,19 @@ import {
 } from "chart.js";
 import "../dashboard.css";
 
+// Register Chart.js components
 ChartJS.register(
   CategoryScale, 
   LinearScale, 
   PointElement, 
   LineElement, 
   BarElement, 
-  ArcElement, // Register ArcElement for Pie chart
+  ArcElement, 
   Title, 
   Tooltip, 
   Legend,
-  RadialLinearScale, // Register RadialLinearScale for RadialBar chart
-  BubbleController // Register BubbleController for Bubble chart
+  RadialLinearScale,
+  BubbleController
 );
 
 const Dashboard = () => {
@@ -1219,12 +1228,20 @@ const Dashboard = () => {
     user
   } = useVisitor();
 
-  const { 
-    analyticsData, 
-    totalVisitors, 
-    visitorsToday, 
-    todayVisitorsData 
-  } = branchData;
+  // Create refs for chart instances to properly clean them up
+  const lineChartRef = useRef(null);
+  const barChartRef = useRef(null);
+  const pieChartRef = useRef(null);
+  const radialChartRef = useRef(null);
+  const scatterChartRef = useRef(null);
+  const bubbleChartRef = useRef(null);
+  const histogramChartRef = useRef(null);
+
+  // Safely access data from branchData with fallbacks
+  const analyticsData = branchData?.analyticsData || [];
+  const totalVisitors = branchData?.totalVisitors || 0;
+  const visitorsToday = branchData?.visitorsToday || 0;
+  const todayVisitorsData = branchData?.todayVisitorsData || [];
 
   // Check if user is authenticated
   useEffect(() => {
@@ -1247,6 +1264,28 @@ const Dashboard = () => {
     };
   }, []);
 
+  // Cleanup function for charts when component unmounts
+  useEffect(() => {
+    return () => {
+      // Destroy all chart instances on unmount to prevent memory leaks
+      const chartRefs = [
+        lineChartRef, 
+        barChartRef, 
+        pieChartRef, 
+        radialChartRef, 
+        scatterChartRef, 
+        bubbleChartRef,
+        histogramChartRef
+      ];
+      
+      chartRefs.forEach(ref => {
+        if (ref.current && ref.current.chartInstance) {
+          ref.current.chartInstance.destroy();
+        }
+      });
+    };
+  }, []);
+
   const handleLogout = () => {
     logout();
     navigate("/login");
@@ -1263,11 +1302,19 @@ const Dashboard = () => {
   const closeModal = () => setModalVisible(false);
 
   const previousMonth = () => {
-    setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)));
+    setCurrentDate(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(newDate.getMonth() - 1);
+      return newDate;
+    });
   };
 
   const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)));
+    setCurrentDate(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(newDate.getMonth() + 1);
+      return newDate;
+    });
   };
 
   const generateCalendarDays = () => {
@@ -1304,6 +1351,7 @@ const Dashboard = () => {
     return calendarDays;
   };
 
+  // Bar chart data
   const barData = {
     labels: analyticsData?.map((item) => item.month) || [],
     datasets: [
@@ -1317,6 +1365,7 @@ const Dashboard = () => {
     ],
   };
 
+  // Line chart data
   const lineData = {
     labels: analyticsData?.map((item) => item.month) || [],
     datasets: [
@@ -1332,7 +1381,7 @@ const Dashboard = () => {
     ],
   };
 
-  // Pie chart data using the same analytics data
+  // Pie chart data
   const pieData = {
     labels: analyticsData?.map((item) => item.month) || [],
     datasets: [
@@ -1364,8 +1413,8 @@ const Dashboard = () => {
     ],
   };
 
-  // RadialBar chart data (implemented as a polar area chart)
-  const radialBarData = {
+  // Updated PolarArea data (replacing RadialBar chart that was causing errors)
+  const polarAreaData = {
     labels: analyticsData?.map((item) => item.month).slice(0, 6) || [],
     datasets: [
       {
@@ -1437,14 +1486,16 @@ const Dashboard = () => {
     ],
   };
 
-  // Histogram data (implemented as a special bar chart)
-  // We'll create frequency buckets from the visitor data
+  // Histogram data creation function
   const createHistogramData = () => {
     if (!analyticsData || analyticsData.length === 0) return null;
     
     const visitorCounts = analyticsData.map(item => item.visits);
     const min = Math.min(...visitorCounts);
     const max = Math.max(...visitorCounts);
+    
+    // Need at least some range for binning
+    if (min === max) return null;
     
     // Create 5 bins for the histogram
     const binSize = Math.ceil((max - min) / 5);
@@ -1480,6 +1531,7 @@ const Dashboard = () => {
   
   const histogramData = createHistogramData();
 
+  // Common chart options
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -1493,19 +1545,20 @@ const Dashboard = () => {
       },
       y: {
         grid: { color: "rgba(0, 0, 0, 0.1)" },
-        ticks: { color: "#34495e", font: { size: 17 } },
+        ticks: { color: "#34495e", font: { size: 12 } },
+        beginAtZero: true,
       },
     },
   };
   
-  // Pie chart options - Updated to arrange months horizontally
+  // Pie chart options
   const pieChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: { 
         display: true, 
-        position: "bottom", // Changed from "right" to "bottom" for horizontal arrangement
+        position: "bottom",
         labels: {
           boxWidth: 15,
           padding: 15,
@@ -1523,15 +1576,6 @@ const Dashboard = () => {
         titleFont: {
           size: 16,
           weight: 'bold'
-        },
-        callbacks: {
-          label: function(context) {
-            const label = context.label || '';
-            const value = context.raw || 0;
-            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-            const percentage = Math.round((value / total) * 100);
-            return `${label}: ${value} visitors (${percentage}%)`;
-          }
         }
       },
       title: {
@@ -1546,17 +1590,6 @@ const Dashboard = () => {
           top: 10,
           bottom: 10
         }
-      },
-      datalabels: {
-        color: '#fff',
-        font: {
-          weight: 'bold'
-        },
-        formatter: (value, ctx) => {
-          const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
-          const percentage = Math.round((value / total) * 100);
-          return percentage + '%';
-        }
       }
     },
     animation: {
@@ -1567,8 +1600,8 @@ const Dashboard = () => {
     radius: '90%'
   };
 
-  // Radial bar options
-  const radialBarOptions = {
+  // Polar Area options (Replacing RadialBar options)
+  const polarAreaOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -1582,26 +1615,16 @@ const Dashboard = () => {
           size: 16,
           weight: 'bold'
         }
-      },
-      tooltip: {
-        callbacks: {
-          label: function(context) {
-            return `${context.label}: ${context.raw} visitors`;
-          }
-        }
       }
     },
     scales: {
       r: {
         beginAtZero: true,
-        ticks: {
-          display: false
-        },
-        grid: {
-          color: 'rgba(0, 0, 0, 0.1)'
-        },
-        angleLines: {
-          color: 'rgba(0, 0, 0, 0.1)'
+        pointLabels: {
+          display: true,
+          font: {
+            size: 12
+          }
         }
       }
     }
@@ -1721,13 +1744,11 @@ const Dashboard = () => {
     }
   };
 
-  // Get user display name
+  // User data helper functions
   const getUserDisplayName = () => {
     if (!user) return '';
     
-    // Use name from user object if available
     if (user.name) {
-      // Format "Lastname, Firstname" to "Firstname Lastname"
       const nameParts = user.name.split(', ');
       if (nameParts.length === 2) {
         return `${nameParts[1]} ${nameParts[0]}`;
@@ -1735,17 +1756,14 @@ const Dashboard = () => {
       return user.name;
     }
     
-    // Fallback to email or userId
     return user.email || user.userId || '';
   };
 
-  // Get user title or role
   const getUserTitle = () => {
     if (!user) return '';
     return user.title || user.role || '';
   };
 
-  // Get user email
   const getUserEmail = () => {
     if (!user) return '';
     return user.email || '';
@@ -1754,12 +1772,7 @@ const Dashboard = () => {
   return (
     <div className="dashboard">
       <div className="dashboard-header">
-        <h1>FNB LOGS ADMIN DASHBOARD FOR {selectedBranchName}</h1>
-        
-        {selectedBranch && (
-          <div className="branch-display">
-          </div>
-        )}
+        <h1>FNB LOGS ADMIN DASHBOARD FOR {selectedBranchName || 'All Branches'}</h1>
         
         {/* User profile dropdown */}
         <div className="user-profile-dropdown" ref={dropdownRef}>
@@ -1843,7 +1856,7 @@ const Dashboard = () => {
                 <img src="/group.png" alt="Total Visitors" className="stat-icon" />
                 <h3>Total Visitors</h3>
                 <p>{totalVisitors}</p>
-                {selectedBranch && <span className="branch-indicator">{selectedBranchName}</span>}
+                {selectedBranchName && <span className="branch-indicator">{selectedBranchName}</span>}
               </div>
               
               <div className="stat-card special">
@@ -1861,17 +1874,25 @@ const Dashboard = () => {
                 ) : (
                   <p>No data available</p>
                 )}
-                {selectedBranch && <span className="branch-indicator">{selectedBranchName}</span>}
+                {selectedBranchName && <span className="branch-indicator">{selectedBranchName}</span>}
               </div>
             </div>
   
             {/* Pie Chart */}
             <div className="pie-chart-container">
               <h3>
-                Visitor Distribution {selectedBranch ? `- ${selectedBranchName}` : ''}
+                Visitor Distribution {selectedBranchName ? `- ${selectedBranchName}` : ''}
               </h3>
               <div className="pie-chart-wrapper">
-                <Pie data={pieData} options={pieChartOptions} />
+                {analyticsData && analyticsData.length > 0 ? (
+                  <Pie 
+                    ref={pieChartRef}
+                    data={pieData} 
+                    options={pieChartOptions} 
+                  />
+                ) : (
+                  <p>No data available for pie chart</p>
+                )}
               </div>
             </div>
           </div>
@@ -1880,36 +1901,64 @@ const Dashboard = () => {
             <div className="charts">
               <div className="chart-container">
                 <h3>
-                  Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
+                  Monthly Visitors {selectedBranchName ? `- ${selectedBranchName}` : ''}
                 </h3>
-                <Line data={lineData} options={chartOptions} />
+                {analyticsData && analyticsData.length > 0 ? (
+                  <Line 
+                    ref={lineChartRef}
+                    data={lineData} 
+                    options={chartOptions} 
+                  />
+                ) : (
+                  <p>No data available for line chart</p>
+                )}
               </div>
               <div className="chart-container">
                 <h3>
-                  Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
+                  Monthly Visitors {selectedBranchName ? `- ${selectedBranchName}` : ''}
                 </h3>
-                <Bar data={barData} options={chartOptions} />
+                {analyticsData && analyticsData.length > 0 ? (
+                  <Bar 
+                    ref={barChartRef}
+                    data={barData} 
+                    options={chartOptions} 
+                  />
+                ) : (
+                  <p>No data available for bar chart</p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* New RadialBar Chart & Histogram Chart Container */}
+          {/* Polar Area Chart & Histogram Chart Container */}
           <div className="charts-container">
             <div className="charts">
               <div className="chart-container">
                 <h3>
-                  RadialBar Chart {selectedBranch ? `- ${selectedBranchName}` : ''}
+                  Polar Area Chart {selectedBranchName ? `- ${selectedBranchName}` : ''}
                 </h3>
                 <div className="radial-chart-wrapper">
-                  <Pie data={radialBarData} options={radialBarOptions} />
+                  {analyticsData && analyticsData.length > 0 ? (
+                    <Pie 
+                      ref={radialChartRef}
+                      data={polarAreaData} 
+                      options={polarAreaOptions} 
+                    />
+                  ) : (
+                    <p>No data available for polar area chart</p>
+                  )}
                 </div>
               </div>
               <div className="chart-container">
                 <h3>
-                  Histogram Chart {selectedBranch ? `- ${selectedBranchName}` : ''}
+                  Histogram Chart {selectedBranchName ? `- ${selectedBranchName}` : ''}
                 </h3>
                 {histogramData ? (
-                  <Bar data={histogramData} options={histogramOptions} />
+                  <Bar 
+                    ref={histogramChartRef}
+                    data={histogramData} 
+                    options={histogramOptions} 
+                  />
                 ) : (
                   <p>Insufficient data for histogram</p>
                 )}
@@ -1917,20 +1966,36 @@ const Dashboard = () => {
             </div>
           </div>
           
-          {/* New Scatter Chart & Bubble Chart Container */}
+          {/* Scatter Chart & Bubble Chart Container */}
           <div className="charts-container">
             <div className="charts">
               <div className="chart-container">
                 <h3>
-                  Scatter Chart {selectedBranch ? `- ${selectedBranchName}` : ''}
+                  Scatter Chart {selectedBranchName ? `- ${selectedBranchName}` : ''}
                 </h3>
-                <Scatter data={scatterData} options={scatterOptions} />
+                {analyticsData && analyticsData.length > 0 ? (
+                  <Scatter 
+                    ref={scatterChartRef}
+                    data={scatterData} 
+                    options={scatterOptions} 
+                  />
+                ) : (
+                  <p>No data available for scatter chart</p>
+                )}
               </div>
               <div className="chart-container">
                 <h3>
-                  Bubble Chart {selectedBranch ? `- ${selectedBranchName}` : ''}
+                  Bubble Chart {selectedBranchName ? `- ${selectedBranchName}` : ''}
                 </h3>
-                <Bubble data={bubbleData} options={bubbleOptions} />
+                {analyticsData && analyticsData.length > 0 ? (
+                  <Bubble 
+                    ref={bubbleChartRef}
+                    data={bubbleData} 
+                    options={bubbleOptions} 
+                  />
+                ) : (
+                  <p>No data available for bubble chart</p>
+                )}
               </div>
             </div>
           </div>
@@ -1940,7 +2005,7 @@ const Dashboard = () => {
               <div className="modal-content">
                 <div className="modal-header">
                   <h2 className="modal-title">
-                    Today's Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
+                    Today's Visitors {selectedBranchName ? `- ${selectedBranchName}` : ''}
                   </h2>
                   <button className="close-button" onClick={closeModal}>&times;</button>
                 </div>
@@ -1963,17 +2028,17 @@ const Dashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {todayVisitorsData.map((visitor) => (
-                          <tr key={visitor.id || visitor.telephone}>
-                            <td>{visitor.name}</td>
-                            <td>{visitor.company}</td>
-                            <td>{visitor.purpose}</td>
-                            <td>{visitor.reason}</td>
-                            <td>{visitor.department}</td>
-                            <td>{visitor.timeIn || visitor.timein}</td>
-                            <td>{visitor.timeOut || visitor.timeout}</td>
-                            <td>{visitor.telephone}</td>
-                            <td>{visitor.branchname || visitor.branch}</td>
+                        {todayVisitorsData.map((visitor, idx) => (
+                          <tr key={visitor.id || visitor.telephone || idx}>
+                            <td>{visitor.name || 'N/A'}</td>
+                            <td>{visitor.company || 'N/A'}</td>
+                            <td>{visitor.purpose || 'N/A'}</td>
+                            <td>{visitor.reason || 'N/A'}</td>
+                            <td>{visitor.department || 'N/A'}</td>
+                            <td>{visitor.timeIn || visitor.timein || 'N/A'}</td>
+                            <td>{visitor.timeOut || visitor.timeout || 'N/A'}</td>
+                            <td>{visitor.telephone || 'N/A'}</td>
+                            <td>{visitor.branchname || visitor.branch || 'N/A'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1995,46 +2060,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
-
-//errror
-Uncaught runtime errors:
-×
-ERROR
-Cannot read properties of undefined (reading 'callback')
-TypeError: Cannot read properties of undefined (reading 'callback')
-    at http://localhost:3001/static/js/bundle.js:149467:108
-    at Array.map (<anonymous>)
-    at RadialLinearScale.generateTickLabels (http://localhost:3001/static/js/bundle.js:149466:42)
-    at RadialLinearScale._convertTicksToLabels (http://localhost:3001/static/js/bundle.js:142497:10)
-    at RadialLinearScale.update (http://localhost:3001/static/js/bundle.js:142244:10)
-    at http://localhost:3001/static/js/bundle.js:141499:11
-    at each (http://localhost:3001/static/js/bundle.js:150451:12)
-    at Object.update (http://localhost:3001/static/js/bundle.js:141496:66)
-    at Chart._updateLayout (http://localhost:3001/static/js/bundle.js:144331:13)
-    at Chart.update (http://localhost:3001/static/js/bundle.js:144253:10)
-ERROR
-Canvas is already in use. Chart with ID '3' must be destroyed before the canvas with ID '' can be reused.
-    at new Chart (http://localhost:3001/static/js/bundle.js:143953:13)
-    at renderChart (http://localhost:3001/static/js/bundle.js:162138:24)
-    at http://localhost:3001/static/js/bundle.js:162185:5
-    at commitHookEffectListMount (http://localhost:3001/static/js/bundle.js:92038:30)
-    at invokePassiveEffectMountInDEV (http://localhost:3001/static/js/bundle.js:93727:17)
-    at invokeEffectsInDev (http://localhost:3001/static/js/bundle.js:95624:15)
-    at commitDoubleInvokeEffectsInDEV (http://localhost:3001/static/js/bundle.js:95607:11)
-    at flushPassiveEffectsImpl (http://localhost:3001/static/js/bundle.js:95380:9)
-    at flushPassiveEffects (http://localhost:3001/static/js/bundle.js:95319:18)
-    at http://localhost:3001/static/js/bundle.js:95134:13
-ERROR
-Cannot read properties of undefined (reading 'callback')
-TypeError: Cannot read properties of undefined (reading 'callback')
-    at http://localhost:3001/static/js/bundle.js:149467:108
-    at Array.map (<anonymous>)
-    at RadialLinearScale.generateTickLabels (http://localhost:3001/static/js/bundle.js:149466:42)
-    at RadialLinearScale._convertTicksToLabels (http://localhost:3001/static/js/bundle.js:142497:10)
-    at RadialLinearScale.update (http://localhost:3001/static/js/bundle.js:142244:10)
-    at http://localhost:3001/static/js/bundle.js:141499:11
-    at each (http://localhost:3001/static/js/bundle.js:150451:12)
-    at Object.update (http://localhost:3001/static/js/bundle.js:141496:66)
-    at Chart._updateLayout (http://localhost:3001/static/js/bundle.js:144331:13)
-    at Chart.update (http://localhost:3001/static/js/bundle.js:144253:10)
