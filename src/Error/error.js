@@ -1180,21 +1180,20 @@ import {
   Title,
   Tooltip,
   Legend,
-  RadialLinearScale,
   BubbleController,
+  ScatterController,
 } from "chart.js";
 import "../dashboard.css";
 
-// Add RadialLinearScale and BubbleController to ChartJS registration
 ChartJS.register(
   CategoryScale, 
   LinearScale, 
   PointElement, 
   LineElement, 
   BarElement, 
-  ArcElement,
-  RadialLinearScale,  // Added for RadialBar chart
-  BubbleController,   // Added for Bubble chart
+  ArcElement, // Register ArcElement for Pie chart
+  BubbleController, // Register BubbleController for Bubble chart
+  ScatterController, // Register ScatterController for Scatter chart
   Title, 
   Tooltip, 
   Legend
@@ -1204,6 +1203,7 @@ const Dashboard = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [modalVisible, setModalVisible] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [activeChartView, setActiveChartView] = useState("standard"); // "standard", "bubble", or "scatter"
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   
@@ -1364,54 +1364,22 @@ const Dashboard = () => {
     ],
   };
 
-  // NEW: RadialBar chart data (using existing analytics data)
-  const radialBarData = {
-    labels: analyticsData?.map((item) => item.month) || [],
-    datasets: [
-      {
-        label: 'Visitors Goal Completion',
-        data: analyticsData?.map((item) => {
-          // Calculate percentage based on a fictitious goal of 1000 visitors per month
-          const goalPerMonth = 1000;
-          return Math.min(Math.round((item.visits / goalPerMonth) * 100), 100);
-        }) || [],
-        backgroundColor: [
-          'rgba(26, 188, 156, 0.7)',  // Turquoise
-          'rgba(52, 152, 219, 0.7)',  // Blue
-          'rgba(155, 89, 182, 0.7)',  // Purple
-          'rgba(241, 196, 15, 0.7)',  // Yellow
-          'rgba(230, 126, 34, 0.7)',  // Orange
-          'rgba(231, 76, 60, 0.7)',   // Red
-          'rgba(52, 73, 94, 0.7)',    // Dark blue
-          'rgba(149, 165, 166, 0.7)', // Gray
-          'rgba(243, 156, 18, 0.7)',  // Orange-yellow
-          'rgba(211, 84, 0, 0.7)',    // Dark orange
-          'rgba(46, 204, 113, 0.7)',  // Green
-          'rgba(22, 160, 133, 0.7)',  // Dark turquoise
-        ],
-        borderWidth: 2,
-        borderColor: '#fff',
-      }
-    ]
-  };
-
-  // NEW: Bubble chart data (using existing analytics data with additional dimension)
+  // Bubble chart data - shows month, visitors, and average visit duration (simulated)
   const bubbleData = {
     datasets: [
       {
-        label: 'Visitor Analysis',
+        label: "Visitor Metrics",
         data: analyticsData?.map((item, index) => {
-          // Generate some variation for the bubble size based on visits
-          const variance = Math.random() * 0.3 + 0.85; // Random factor between 0.85 and 1.15
+          // Simulating visit duration between 15-60 minutes
+          const avgDuration = Math.floor(Math.random() * 45) + 15;
           return {
-            x: index, // X-axis: month index
-            y: item.visits, // Y-axis: visitor count
-            r: Math.sqrt(item.visits) * variance / 2 // Radius: square root of visits with some variance, scaled down
+            x: index, // x-axis: month index
+            y: item.visits, // y-axis: number of visitors
+            r: avgDuration / 3, // bubble radius: proportional to avg visit duration
           };
         }) || [],
         backgroundColor: analyticsData?.map((_, index) => {
-          // Generate a gradient of colors
-          const hue = (index * 30) % 360;
+          const hue = (index * 30) % 360; // Spread colors across hue spectrum
           return `hsla(${hue}, 70%, 60%, 0.7)`;
         }) || [],
         borderColor: analyticsData?.map((_, index) => {
@@ -1419,8 +1387,43 @@ const Dashboard = () => {
           return `hsla(${hue}, 70%, 50%, 1)`;
         }) || [],
         borderWidth: 1,
-      }
-    ]
+        hoverBackgroundColor: "rgba(255, 99, 132, 0.6)",
+        hoverBorderColor: "rgba(255, 99, 132, 1)",
+      },
+    ],
+  };
+
+  // Scatter chart data - shows correlation between visitors and day of week (simulated)
+  const scatterData = {
+    datasets: [
+      {
+        label: 'Visitors by Day of Week',
+        data: analyticsData?.flatMap((item, monthIndex) => {
+          // Generate 4-5 data points per month to simulate weekly patterns
+          return Array.from({ length: 4 }, (_, i) => {
+            const dayOfWeek = i + 1; // 1-4 representing different days
+            // Simulate varying visitor counts based on day of week pattern
+            const baseVisits = item.visits / 5; // Approx visitors per day
+            let modifier = 1;
+            
+            // Simulate weekday vs weekend patterns
+            if (dayOfWeek <= 2) modifier = 1.4; // More visitors on weekdays
+            else modifier = 0.7; // Fewer on weekends
+            
+            return {
+              x: monthIndex, // x-axis: month index
+              y: Math.round(baseVisits * modifier * (0.85 + Math.random() * 0.3)),
+              dayLabel: ['Mon', 'Wed', 'Fri', 'Sun'][i], // For tooltip
+            };
+          });
+        }) || [],
+        backgroundColor: 'rgba(46, 204, 113, 0.7)',
+        borderColor: '#2ecc71',
+        borderWidth: 1,
+        pointRadius: 5,
+        pointHoverRadius: 8,
+      },
+    ],
   };
 
   const chartOptions = {
@@ -1441,14 +1444,130 @@ const Dashboard = () => {
     },
   };
   
-  // Pie chart options
+  // Bubble chart options
+  const bubbleChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, position: "top" },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const month = analyticsData?.[context.dataIndex]?.month || 'Unknown';
+            const visits = context.raw.y;
+            const duration = context.raw.r * 3; // Convert radius back to duration
+            return [
+              `Month: ${month}`,
+              `Visitors: ${visits}`,
+              `Avg. Duration: ${duration} min`
+            ];
+          }
+        }
+      },
+      title: {
+        display: true,
+        text: 'Visitors and Visit Duration by Month',
+        font: { size: 16, weight: 'bold' },
+        padding: { top: 10, bottom: 10 }
+      }
+    },
+    scales: {
+      x: {
+        type: 'linear',
+        position: 'bottom',
+        grid: { color: "rgba(0, 0, 0, 0.1)" },
+        ticks: {
+          callback: function(value) {
+            return analyticsData?.[value]?.month || '';
+          },
+          color: "#34495e", 
+          font: { size: 12 }
+        },
+        title: {
+          display: true,
+          text: 'Month',
+          color: '#666',
+          font: { size: 14, weight: 'bold' }
+        }
+      },
+      y: {
+        type: 'linear',
+        grid: { color: "rgba(0, 0, 0, 0.1)" },
+        ticks: { color: "#34495e", font: { size: 12 } },
+        title: {
+          display: true,
+          text: 'Number of Visitors',
+          color: '#666',
+          font: { size: 14, weight: 'bold' }
+        }
+      }
+    }
+  };
+  
+  // Scatter chart options
+  const scatterChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, position: "top" },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const month = analyticsData?.[context.raw.x]?.month || 'Unknown';
+            const day = context.raw.dayLabel || '';
+            return `${month} (${day}): ${context.raw.y} visitors`;
+          }
+        }
+      },
+      title: {
+        display: true,
+        text: 'Visitor Patterns by Day and Month',
+        font: { size: 16, weight: 'bold' },
+        padding: { top: 10, bottom: 10 }
+      }
+    },
+    scales: {
+      x: {
+        type: 'linear',
+        position: 'bottom',
+        grid: { color: "rgba(0, 0, 0, 0.1)" },
+        ticks: {
+          callback: function(value) {
+            return analyticsData?.[value]?.month || '';
+          },
+          color: "#34495e", 
+          font: { size: 12 }
+        },
+        title: {
+          display: true,
+          text: 'Month',
+          color: '#666',
+          font: { size: 14, weight: 'bold' }
+        }
+      },
+      y: {
+        type: 'linear',
+        grid: { color: "rgba(0, 0, 0, 0.1)" },
+        min: 0,
+        ticks: { color: "#34495e", font: { size: 12 } },
+        title: {
+          display: true,
+          text: 'Number of Visitors',
+          color: '#666',
+          font: { size: 14, weight: 'bold' }
+        }
+      }
+    }
+  };
+  
+  // Pie chart options - Updated to arrange months horizontally
   const pieChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: { 
         display: true, 
-        position: "bottom",
+        position: "bottom", // Changed from "right" to "bottom" for horizontal arrangement
         labels: {
           boxWidth: 15,
           padding: 15,
@@ -1489,6 +1608,17 @@ const Dashboard = () => {
           top: 10,
           bottom: 10
         }
+      },
+      datalabels: {
+        color: '#fff',
+        font: {
+          weight: 'bold'
+        },
+        formatter: (value, ctx) => {
+          const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+          const percentage = Math.round((value / total) * 100);
+          return percentage + '%';
+        }
       }
     },
     animation: {
@@ -1497,135 +1627,6 @@ const Dashboard = () => {
     },
     cutout: '30%',
     radius: '90%'
-  };
-
-  // NEW: RadialBar chart options
-  const radialBarOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false,  // Hide legend for cleaner look
-      },
-      tooltip: {
-        callbacks: {
-          label: function(context) {
-            return `${context.label}: ${context.raw}% of goal`;
-          }
-        }
-      },
-      title: {
-        display: true,
-        text: 'Monthly Visitor Goal Completion',
-        font: {
-          size: 16,
-          weight: 'bold'
-        },
-        color: '#333',
-        padding: {
-          top: 10,
-          bottom: 10
-        }
-      }
-    },
-    scales: {
-      r: {
-        angleLines: {
-          display: true,
-          color: 'rgba(0, 0, 0, 0.1)',
-        },
-        suggestedMin: 0,
-        suggestedMax: 100,
-        ticks: {
-          stepSize: 20,
-          backdropColor: 'transparent',
-          color: '#666',
-          font: {
-            size: 10
-          }
-        },
-        grid: {
-          color: 'rgba(0, 0, 0, 0.1)',
-        },
-        pointLabels: {
-          font: {
-            size: 12
-          },
-          color: '#333'
-        }
-      }
-    }
-  };
-
-  // NEW: Bubble chart options
-  const bubbleOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false, // Hide legend for cleaner look
-      },
-      tooltip: {
-        callbacks: {
-          label: function(context) {
-            const month = analyticsData ? analyticsData[context.dataIndex]?.month : '';
-            const visits = context.raw.y;
-            return `${month}: ${visits} visitors`;
-          }
-        }
-      },
-      title: {
-        display: true,
-        text: 'Visitor Volume Analysis',
-        font: {
-          size: 16,
-          weight: 'bold'
-        },
-        color: '#333',
-        padding: {
-          top: 10,
-          bottom: 10
-        }
-      }
-    },
-    scales: {
-      x: {
-        grid: { color: "rgba(0, 0, 0, 0.1)" },
-        ticks: {
-          callback: function(value) {
-            return analyticsData ? analyticsData[value]?.month : '';
-          },
-          color: "#34495e",
-          font: { size: 12 }
-        },
-        title: {
-          display: true,
-          text: 'Month',
-          color: '#666',
-          font: {
-            size: 14,
-            weight: 'bold'
-          }
-        }
-      },
-      y: {
-        grid: { color: "rgba(0, 0, 0, 0.1)" },
-        ticks: { color: "#34495e", font: { size: 12 } },
-        title: {
-          display: true,
-          text: 'Number of Visitors',
-          color: '#666',
-          font: {
-            size: 14,
-            weight: 'bold'
-          }
-        }
-      }
-    },
-    animation: {
-      duration: 2000,
-      easing: 'easeOutQuart'
-    }
   };
 
   // Get user display name
@@ -1656,6 +1657,11 @@ const Dashboard = () => {
   const getUserEmail = () => {
     if (!user) return '';
     return user.email || '';
+  };
+
+  // Toggle between different chart views
+  const handleChartViewChange = (view) => {
+    setActiveChartView(view);
   };
 
   return (
@@ -1783,60 +1789,92 @@ const Dashboard = () => {
             </div>
           </div>
   
-          {/* Original charts container */}
-          <div className="charts-container">
-            <div className="charts">
-              <div className="chart-container">
-                <h3>
-                  Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
-                </h3>
-                <Line data={lineData} options={chartOptions} />
-              </div>
-              <div className="chart-container">
-                <h3>
-                  Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
-                </h3>
-                <Bar data={barData} options={chartOptions} />
-              </div>
-            </div>
+          {/* Chart View Toggle Buttons */}
+          <div className="chart-view-toggle">
+            <button 
+              className={`toggle-button ${activeChartView === "standard" ? "active" : ""}`} 
+              onClick={() => handleChartViewChange("standard")}
+            >
+              Standard Charts
+            </button>
+            <button 
+              className={`toggle-button ${activeChartView === "bubble" ? "active" : ""}`} 
+              onClick={() => handleChartViewChange("bubble")}
+            >
+              Bubble Chart
+            </button>
+            <button 
+              className={`toggle-button ${activeChartView === "scatter" ? "active" : ""}`} 
+              onClick={() => handleChartViewChange("scatter")}
+            >
+              Scatter Chart
+            </button>
           </div>
-
-          {/* NEW: RadialBar and Bubble charts container */}
-          <div className="charts-container">
-            <div className="charts">
-              {/* RadialBar Chart */}
-              <div className="chart-container">
-                <h3>
-                  Visitor Goal Completion {selectedBranch ? `- ${selectedBranchName}` : ''}
-                </h3>
-                <div className="radial-chart-wrapper">
-                  {/* Use the radar chart type from react-chartjs-2 for a RadialBar presentation */}
-                  <Scatter 
-                    data={radialBarData} 
-                    options={{
-                      ...radialBarOptions,
-                      scales: {
-                        r: {
-                          ...radialBarOptions.scales.r,
-                          type: 'radialLinear'
-                        }
-                      }
-                    }} 
-                  />
+  
+          {/* Standard Charts (Line and Bar) */}
+          {activeChartView === "standard" && (
+            <div className="charts-container">
+              <div className="charts">
+                <div className="chart-container">
+                  <h3>
+                    Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
+                  </h3>
+                  <Line data={lineData} options={chartOptions} />
                 </div>
-              </div>
-              
-              {/* Bubble Chart */}
-              <div className="chart-container">
-                <h3>
-                  Visitor Volume Analysis {selectedBranch ? `- ${selectedBranchName}` : ''}
-                </h3>
-                <div className="bubble-chart-wrapper">
-                  <Bubble data={bubbleData} options={bubbleOptions} />
+                <div className="chart-container">
+                  <h3>
+                    Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
+                  </h3>
+                  <Bar data={barData} options={chartOptions} />
                 </div>
               </div>
             </div>
-          </div>
+          )}
+  
+          {/* Bubble Chart View */}
+          {activeChartView === "bubble" && (
+            <div className="charts-container">
+              <div className="charts">
+                <div className="chart-container full-width">
+                  <h3>
+                    Visitors and Visit Duration by Month {selectedBranch ? `- ${selectedBranchName}` : ''}
+                  </h3>
+                  <div className="chart-description">
+                    <p>This bubble chart visualizes three dimensions of data:</p>
+                    <ul>
+                      <li><strong>X-axis:</strong> Month</li>
+                      <li><strong>Y-axis:</strong> Number of visitors</li>
+                      <li><strong>Bubble size:</strong> Average visit duration in minutes</li>
+                    </ul>
+                  </div>
+                  <Bubble data={bubbleData} options={bubbleChartOptions} />
+                </div>
+              </div>
+            </div>
+          )}
+  
+          {/* Scatter Chart View */}
+          {activeChartView === "scatter" && (
+            <div className="charts-container">
+              <div className="charts">
+                <div className="chart-container full-width">
+                  <h3>
+                    Visitor Patterns by Day and Month {selectedBranch ? `- ${selectedBranchName}` : ''}
+                  </h3>
+                  <div className="chart-description">
+                    <p>This scatter plot shows visitor patterns throughout the week for each month:</p>
+                    <ul>
+                      <li><strong>X-axis:</strong> Month</li>
+                      <li><strong>Y-axis:</strong> Number of visitors</li>
+                      <li><strong>Each point:</strong> Represents a different day of the week</li>
+                    </ul>
+                    <p>Notice how visitor patterns change between weekdays and weekends.</p>
+                  </div>
+                  <Scatter data={scatterData} options={scatterChartOptions} />
+                </div>
+              </div>
+            </div>
+          )}
   
           {modalVisible && (
             <div className="modal">
@@ -1893,6 +1931,62 @@ const Dashboard = () => {
           )} 
         </>
       )}
+      
+      {/* Add CSS for new chart components */}
+      <style jsx>{`
+        .chart-view-toggle {
+          display: flex;
+          justify-content: center;
+          margin-bottom: 20px;
+        }
+        
+        .toggle-button {
+          background-color: #f2f2f2;
+          border: 1px solid #ddd;
+          padding: 8px 16px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          font-weight: 500;
+        }
+        
+        .toggle-button:first-child {
+          border-radius: 4px 0 0 4px;
+        }
+        
+        .toggle-button:last-child {
+          border-radius: 0 4px 4px 0;
+        }
+        
+        .toggle-button.active {
+          background-color: #3498db;
+          color: white;
+          border-color: #2980b9;
+        }
+        
+        .full-width {
+          grid-column: span 2;
+          height: 400px;
+        }
+        
+        .chart-description {
+          margin-bottom: 15px;
+          font-size: 14px;
+          color: #666;
+          background-color: #f9f9f9;
+          padding: 10px;
+          border-radius: 4px;
+          border-left: 4px solid #3498db;
+        }
+        
+        .chart-description ul {
+          margin: 5px 0;
+          padding-left: 20px;
+        }
+        
+        .chart-description li {
+          margin-bottom: 3px;
+        }
+      `}</style>
     </div>
   );
 };
