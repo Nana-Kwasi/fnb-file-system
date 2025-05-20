@@ -1203,7 +1203,6 @@ const Dashboard = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [modalVisible, setModalVisible] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [activeChartView, setActiveChartView] = useState("standard"); // "standard", "bubble", or "scatter"
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   
@@ -1463,12 +1462,6 @@ const Dashboard = () => {
             ];
           }
         }
-      },
-      title: {
-        display: true,
-        text: 'Visitors and Visit Duration by Month',
-        font: { size: 16, weight: 'bold' },
-        padding: { top: 10, bottom: 10 }
       }
     },
     scales: {
@@ -1518,12 +1511,6 @@ const Dashboard = () => {
             return `${month} (${day}): ${context.raw.y} visitors`;
           }
         }
-      },
-      title: {
-        display: true,
-        text: 'Visitor Patterns by Day and Month',
-        font: { size: 16, weight: 'bold' },
-        padding: { top: 10, bottom: 10 }
       }
     },
     scales: {
@@ -1659,10 +1646,8 @@ const Dashboard = () => {
     return user.email || '';
   };
 
-  // Toggle between different chart views
-  const handleChartViewChange = (view) => {
-    setActiveChartView(view);
-  };
+  // This function is no longer needed as we'll show all charts
+  // Keeping it as a placeholder in case we need it later
 
   return (
     <div className="dashboard">
@@ -1789,92 +1774,47 @@ const Dashboard = () => {
             </div>
           </div>
   
-          {/* Chart View Toggle Buttons */}
-          <div className="chart-view-toggle">
-            <button 
-              className={`toggle-button ${activeChartView === "standard" ? "active" : ""}`} 
-              onClick={() => handleChartViewChange("standard")}
-            >
-              Standard Charts
-            </button>
-            <button 
-              className={`toggle-button ${activeChartView === "bubble" ? "active" : ""}`} 
-              onClick={() => handleChartViewChange("bubble")}
-            >
-              Bubble Chart
-            </button>
-            <button 
-              className={`toggle-button ${activeChartView === "scatter" ? "active" : ""}`} 
-              onClick={() => handleChartViewChange("scatter")}
-            >
-              Scatter Chart
-            </button>
+          {/* All Charts Container */}
+          <div className="charts-container">
+            <div className="charts">
+              <div className="chart-container">
+                <h3>
+                  Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
+                </h3>
+                <Line data={lineData} options={chartOptions} />
+              </div>
+              <div className="chart-container">
+                <h3>
+                  Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
+                </h3>
+                <Bar data={barData} options={chartOptions} />
+              </div>
+            </div>
           </div>
-  
-          {/* Standard Charts (Line and Bar) */}
-          {activeChartView === "standard" && (
-            <div className="charts-container">
-              <div className="charts">
-                <div className="chart-container">
-                  <h3>
-                    Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
-                  </h3>
-                  <Line data={lineData} options={chartOptions} />
+          
+          {/* Additional Charts Container - Bubble and Scatter */}
+          <div className="charts-container">
+            <div className="charts">
+              <div className="chart-container">
+                <h3>
+                  Visitors and Visit Duration {selectedBranch ? `- ${selectedBranchName}` : ''}
+                </h3>
+                <div className="chart-description">
+                  <p>Bubble size represents average visit duration in minutes</p>
                 </div>
-                <div className="chart-container">
-                  <h3>
-                    Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
-                  </h3>
-                  <Bar data={barData} options={chartOptions} />
+                <Bubble data={bubbleData} options={bubbleChartOptions} />
+              </div>
+              <div className="chart-container">
+                <h3>
+                  Visitor Patterns by Day {selectedBranch ? `- ${selectedBranchName}` : ''}
+                </h3>
+                <div className="chart-description">
+                  <p>Each point represents a different day of the week</p>
                 </div>
+                <Scatter data={scatterData} options={scatterChartOptions} />
               </div>
             </div>
-          )}
-  
-          {/* Bubble Chart View */}
-          {activeChartView === "bubble" && (
-            <div className="charts-container">
-              <div className="charts">
-                <div className="chart-container full-width">
-                  <h3>
-                    Visitors and Visit Duration by Month {selectedBranch ? `- ${selectedBranchName}` : ''}
-                  </h3>
-                  <div className="chart-description">
-                    <p>This bubble chart visualizes three dimensions of data:</p>
-                    <ul>
-                      <li><strong>X-axis:</strong> Month</li>
-                      <li><strong>Y-axis:</strong> Number of visitors</li>
-                      <li><strong>Bubble size:</strong> Average visit duration in minutes</li>
-                    </ul>
-                  </div>
-                  <Bubble data={bubbleData} options={bubbleChartOptions} />
-                </div>
-              </div>
-            </div>
-          )}
-  
-          {/* Scatter Chart View */}
-          {activeChartView === "scatter" && (
-            <div className="charts-container">
-              <div className="charts">
-                <div className="chart-container full-width">
-                  <h3>
-                    Visitor Patterns by Day and Month {selectedBranch ? `- ${selectedBranchName}` : ''}
-                  </h3>
-                  <div className="chart-description">
-                    <p>This scatter plot shows visitor patterns throughout the week for each month:</p>
-                    <ul>
-                      <li><strong>X-axis:</strong> Month</li>
-                      <li><strong>Y-axis:</strong> Number of visitors</li>
-                      <li><strong>Each point:</strong> Represents a different day of the week</li>
-                    </ul>
-                    <p>Notice how visitor patterns change between weekdays and weekends.</p>
-                  </div>
-                  <Scatter data={scatterData} options={scatterChartOptions} />
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
   
           {modalVisible && (
             <div className="modal">
@@ -1932,59 +1872,17 @@ const Dashboard = () => {
         </>
       )}
       
-      {/* Add CSS for new chart components */}
+      {/* Add CSS for chart components */}
       <style jsx>{`
-        .chart-view-toggle {
-          display: flex;
-          justify-content: center;
-          margin-bottom: 20px;
-        }
-        
-        .toggle-button {
-          background-color: #f2f2f2;
-          border: 1px solid #ddd;
-          padding: 8px 16px;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          font-weight: 500;
-        }
-        
-        .toggle-button:first-child {
-          border-radius: 4px 0 0 4px;
-        }
-        
-        .toggle-button:last-child {
-          border-radius: 0 4px 4px 0;
-        }
-        
-        .toggle-button.active {
-          background-color: #3498db;
-          color: white;
-          border-color: #2980b9;
-        }
-        
-        .full-width {
-          grid-column: span 2;
-          height: 400px;
-        }
-        
         .chart-description {
-          margin-bottom: 15px;
-          font-size: 14px;
+          margin-bottom: 10px;
+          font-size: 13px;
           color: #666;
           background-color: #f9f9f9;
-          padding: 10px;
+          padding: 8px;
           border-radius: 4px;
           border-left: 4px solid #3498db;
-        }
-        
-        .chart-description ul {
-          margin: 5px 0;
-          padding-left: 20px;
-        }
-        
-        .chart-description li {
-          margin-bottom: 3px;
+          text-align: center;
         }
       `}</style>
     </div>
