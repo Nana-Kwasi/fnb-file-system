@@ -1164,9 +1164,10 @@ export default Analytics;
 }
 
 //dashboard
+
 import React, { useState, useEffect, useRef } from "react";
 import { AiOutlineUser, AiOutlineTeam, AiOutlineLeft, AiOutlineRight, AiOutlineLogout, AiOutlineDown, AiOutlinePieChart } from "react-icons/ai";
-import { Line, Bar, Pie } from "react-chartjs-2";
+import { Line, Bar, Pie, Scatter, Bubble } from "react-chartjs-2";
 import { useNavigate } from "react-router-dom";
 import { useVisitor } from "../context/VisitorContext";
 import {
@@ -1180,6 +1181,8 @@ import {
   Title,
   Tooltip,
   Legend,
+  RadialLinearScale,
+  BubbleController,
 } from "chart.js";
 import "../dashboard.css";
 
@@ -1192,7 +1195,9 @@ ChartJS.register(
   ArcElement, // Register ArcElement for Pie chart
   Title, 
   Tooltip, 
-  Legend
+  Legend,
+  RadialLinearScale, // Register RadialLinearScale for RadialBar chart
+  BubbleController // Register BubbleController for Bubble chart
 );
 
 const Dashboard = () => {
@@ -1359,6 +1364,122 @@ const Dashboard = () => {
     ],
   };
 
+  // RadialBar chart data (implemented as a polar area chart)
+  const radialBarData = {
+    labels: analyticsData?.map((item) => item.month).slice(0, 6) || [],
+    datasets: [
+      {
+        label: 'Visitor Distribution',
+        data: analyticsData?.map((item) => item.visits).slice(0, 6) || [],
+        backgroundColor: [
+          'rgba(52, 152, 219, 0.7)',
+          'rgba(46, 204, 113, 0.7)',
+          'rgba(155, 89, 182, 0.7)',
+          'rgba(241, 196, 15, 0.7)',
+          'rgba(231, 76, 60, 0.7)',
+          'rgba(230, 126, 34, 0.7)',
+        ],
+        borderWidth: 1,
+        borderColor: [
+          '#3498db', '#2ecc71', '#9b59b6', 
+          '#f1c40f', '#e74c3c', '#e67e22',
+        ],
+      }
+    ],
+  };
+
+  // Scatter chart data
+  const scatterData = {
+    datasets: [
+      {
+        label: 'Day vs. Visitors',
+        data: analyticsData?.map((item, index) => ({
+          x: index + 1,  // Day/position in the dataset
+          y: item.visits,  // Number of visitors
+        })) || [],
+        backgroundColor: 'rgba(41, 128, 185, 0.8)',
+        borderColor: '#2980b9',
+        pointRadius: 8,
+        pointHoverRadius: 12,
+      }
+    ],
+  };
+
+  // Bubble chart data
+  const bubbleData = {
+    datasets: [
+      {
+        label: 'Month Visitors (Bubble Size = Relative Importance)',
+        data: analyticsData?.map((item, index) => ({
+          x: index + 1,  // Position in month sequence
+          y: item.visits,  // Number of visitors
+          r: Math.sqrt(item.visits) / 2,  // Radius proportional to visits
+        })) || [],
+        backgroundColor: analyticsData?.map((_, index) => {
+          const colors = [
+            'rgba(52, 152, 219, 0.7)',
+            'rgba(46, 204, 113, 0.7)',
+            'rgba(155, 89, 182, 0.7)',
+            'rgba(241, 196, 15, 0.7)',
+            'rgba(231, 76, 60, 0.7)',
+            'rgba(230, 126, 34, 0.7)',
+            'rgba(26, 188, 156, 0.7)',
+            'rgba(52, 73, 94, 0.7)',
+            'rgba(149, 165, 166, 0.7)',
+            'rgba(243, 156, 18, 0.7)',
+            'rgba(211, 84, 0, 0.7)',
+            'rgba(22, 160, 133, 0.7)',
+          ];
+          return colors[index % colors.length];
+        }),
+        borderColor: '#2980b9',
+      }
+    ],
+  };
+
+  // Histogram data (implemented as a special bar chart)
+  // We'll create frequency buckets from the visitor data
+  const createHistogramData = () => {
+    if (!analyticsData || analyticsData.length === 0) return null;
+    
+    const visitorCounts = analyticsData.map(item => item.visits);
+    const min = Math.min(...visitorCounts);
+    const max = Math.max(...visitorCounts);
+    
+    // Create 5 bins for the histogram
+    const binSize = Math.ceil((max - min) / 5);
+    const bins = Array(5).fill(0);
+    
+    // Count visitors in each bin
+    visitorCounts.forEach(count => {
+      const binIndex = Math.min(Math.floor((count - min) / binSize), 4);
+      bins[binIndex]++;
+    });
+    
+    // Create labels for bins
+    const labels = [];
+    for (let i = 0; i < 5; i++) {
+      const lowerBound = min + (i * binSize);
+      const upperBound = min + ((i + 1) * binSize);
+      labels.push(`${lowerBound}-${upperBound}`);
+    }
+    
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Frequency of Visitor Counts',
+          data: bins,
+          backgroundColor: 'rgba(155, 89, 182, 0.7)',
+          borderColor: '#8e44ad',
+          borderWidth: 1,
+        }
+      ]
+    };
+  };
+  
+  const histogramData = createHistogramData();
+
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -1444,6 +1565,180 @@ const Dashboard = () => {
     },
     cutout: '30%',
     radius: '90%'
+  };
+
+  // Radial bar options
+  const radialBarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+      title: {
+        display: true,
+        text: 'Visitor Distribution by Month',
+        font: {
+          size: 16,
+          weight: 'bold'
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return `${context.label}: ${context.raw} visitors`;
+          }
+        }
+      }
+    },
+    scales: {
+      r: {
+        beginAtZero: true,
+        ticks: {
+          display: false
+        },
+        grid: {
+          color: 'rgba(0, 0, 0, 0.1)'
+        },
+        angleLines: {
+          color: 'rgba(0, 0, 0, 0.1)'
+        }
+      }
+    }
+  };
+
+  // Scatter chart options
+  const scatterOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const index = context.dataIndex;
+            const month = analyticsData?.[index]?.month || 'Unknown';
+            return `${month}: ${context.raw.y} visitors`;
+          }
+        }
+      },
+      title: {
+        display: true,
+        text: 'Visitor Distribution (Scatter)',
+        font: {
+          size: 16,
+          weight: 'bold'
+        }
+      }
+    },
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: 'Month Index'
+        },
+        ticks: {
+          callback: function(value) {
+            return analyticsData?.[value-1]?.month?.substring(0, 3) || value;
+          }
+        }
+      },
+      y: {
+        title: {
+          display: true,
+          text: 'Number of Visitors'
+        },
+        beginAtZero: true
+      }
+    }
+  };
+
+  // Bubble chart options
+  const bubbleOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const index = context.dataIndex;
+            const month = analyticsData?.[index]?.month || 'Unknown';
+            return `${month}: ${context.raw.y} visitors`;
+          }
+        }
+      },
+      title: {
+        display: true,
+        text: 'Visitor Volume by Month (Bubble)',
+        font: {
+          size: 16,
+          weight: 'bold'
+        }
+      }
+    },
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: 'Month Index'
+        },
+        ticks: {
+          callback: function(value) {
+            return analyticsData?.[value-1]?.month?.substring(0, 3) || value;
+          }
+        }
+      },
+      y: {
+        title: {
+          display: true,
+          text: 'Number of Visitors'
+        },
+        beginAtZero: true
+      }
+    }
+  };
+
+  // Histogram options
+  const histogramOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+      title: {
+        display: true,
+        text: 'Visitor Count Distribution (Histogram)',
+        font: {
+          size: 16,
+          weight: 'bold'
+        }
+      },
+      tooltip: {
+        callbacks: {
+          title: function(context) {
+            return context[0].label + ' visitors';
+          },
+          label: function(context) {
+            return `Frequency: ${context.raw} months`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: 'Visitor Count Ranges'
+        }
+      },
+      y: {
+        title: {
+          display: true,
+          text: 'Frequency (Number of Months)'
+        },
+        beginAtZero: true
+      }
+    }
   };
 
   // Get user display name
@@ -1614,6 +1909,48 @@ const Dashboard = () => {
                   Monthly Visitors {selectedBranch ? `- ${selectedBranchName}` : ''}
                 </h3>
                 <Bar data={barData} options={chartOptions} />
+              </div>
+            </div>
+          </div>
+
+          {/* New RadialBar Chart & Histogram Chart Container */}
+          <div className="charts-container">
+            <div className="charts">
+              <div className="chart-container">
+                <h3>
+                  RadialBar Chart {selectedBranch ? `- ${selectedBranchName}` : ''}
+                </h3>
+                <div className="radial-chart-wrapper">
+                  <Pie data={radialBarData} options={radialBarOptions} />
+                </div>
+              </div>
+              <div className="chart-container">
+                <h3>
+                  Histogram Chart {selectedBranch ? `- ${selectedBranchName}` : ''}
+                </h3>
+                {histogramData ? (
+                  <Bar data={histogramData} options={histogramOptions} />
+                ) : (
+                  <p>Insufficient data for histogram</p>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* New Scatter Chart & Bubble Chart Container */}
+          <div className="charts-container">
+            <div className="charts">
+              <div className="chart-container">
+                <h3>
+                  Scatter Chart {selectedBranch ? `- ${selectedBranchName}` : ''}
+                </h3>
+                <Scatter data={scatterData} options={scatterOptions} />
+              </div>
+              <div className="chart-container">
+                <h3>
+                  Bubble Chart {selectedBranch ? `- ${selectedBranchName}` : ''}
+                </h3>
+                <Bubble data={bubbleData} options={bubbleOptions} />
               </div>
             </div>
           </div>
