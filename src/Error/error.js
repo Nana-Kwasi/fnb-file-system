@@ -1616,7 +1616,7 @@ const Dashboard = () => {
         callbacks: {
           label: function(context) {
             const index = context.dataIndex;
-            const month = analyticsData?.[index]?.month || 'Unknown';
+            const month = analyticsData && analyticsData[index] ? analyticsData[index].month : 'Unknown';
             return `${month}: ${context.raw.y} visitors`;
           }
         }
@@ -1635,11 +1635,6 @@ const Dashboard = () => {
         title: {
           display: true,
           text: 'Month Index'
-        },
-        ticks: {
-          callback: function(value) {
-            return analyticsData?.[value-1]?.month?.substring(0, 3) || value;
-          }
         }
       },
       y: {
@@ -1661,7 +1656,7 @@ const Dashboard = () => {
         callbacks: {
           label: function(context) {
             const index = context.dataIndex;
-            const month = analyticsData?.[index]?.month || 'Unknown';
+            const month = analyticsData && analyticsData[index] ? analyticsData[index].month : 'Unknown';
             return `${month}: ${context.raw.y} visitors`;
           }
         }
@@ -1680,11 +1675,6 @@ const Dashboard = () => {
         title: {
           display: true,
           text: 'Month Index'
-        },
-        ticks: {
-          callback: function(value) {
-            return analyticsData?.[value-1]?.month?.substring(0, 3) || value;
-          }
         }
       },
       y: {
@@ -1711,16 +1701,6 @@ const Dashboard = () => {
         font: {
           size: 16,
           weight: 'bold'
-        }
-      },
-      tooltip: {
-        callbacks: {
-          title: function(context) {
-            return context[0].label + ' visitors';
-          },
-          label: function(context) {
-            return `Frequency: ${context.raw} months`;
-          }
         }
       }
     },
