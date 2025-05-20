@@ -1,6 +1,6 @@
 {
   "name": "fnb-invoices-system",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "dependencies": {
     "chart.js": "^4.4.7",
