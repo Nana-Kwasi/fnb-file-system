@@ -78,3 +78,16 @@ for title, content, notes in slides_data:
 # Save the file
 prs.save("Tier_3_Pensions_Withdrawal_Ghana.pptx")
 print("Presentation saved as 'Tier_3_Pensions_Withdrawal_Ghana.pptx'")
+
+
+
+
+
+
+//error
+PS C:\Users\f8877557\OneDrive - FRG\Desktop\chatboat> python main.py
+  File "C:\Users\f8877557\OneDrive - FRG\Desktop\chatboat\main.py", line 5
+    from pptx.util import Inches,
+                                 ^
+SyntaxError: trailing comma not allowed without surrounding parentheses
+PS C:\Users\f8877557\OneDrive - FRG\Desktop\chatboat> 
