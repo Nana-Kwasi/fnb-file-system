@@ -28,7 +28,7 @@ const checkStorageAvailability = (dataSize) => {
       return total + localStorage[key].length;
     }, 0);
 
-    const estimatedAvailable = 5 * 1024 * 1024 - totalSize; // Estimate 5MB limit
+    const estimatedAvailable = 5 * 1024 * 1024 - totalSize; 
     return estimatedAvailable >= dataSize;
   } catch (e) {
     return false;
