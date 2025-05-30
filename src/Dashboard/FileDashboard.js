@@ -205,10 +205,8 @@
 // };
 
 // export default Dashboard;
-
 import React, { useState, useEffect } from 'react';
-import Users from '../Users/Users';
-import { BarChart3, Users as UsersIcon, FileText, LogOut, Download, CheckSquare } from 'lucide-react';
+import { BarChart3, Users as UsersIcon, FileText, LogOut, Download, CheckSquare, Eye, X, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Statistics from '../Statistics/Statistics';
 import Upload from '../Upload/Upload';
@@ -218,19 +216,28 @@ import { useAuth } from '../Context/AuthContext';
 import { useInvoices } from '../Context/InvoiceContext';
 import "../filedashboard.css";
 import FileStatusCircles from '../File/FileStatus';
-
+import FileViewer from '../Fileviewer/Fileviewer';
 const Dashboard = () => {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedFiles, setSelectedFiles] = useState(new Set());
+  const [viewingFile, setViewingFile] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
   const navigate = useNavigate();
   const { user, logout, ROLES } = useAuth();
-  const { invoices, INVOICE_STATUS, canEditInvoice, updateInvoiceStatus, downloadInvoice } = useInvoices();
+  const { 
+    invoices, 
+    INVOICE_STATUS, 
+    canEditInvoice, 
+    updateInvoiceStatus, 
+    downloadInvoice, 
+    viewInvoice,
+    getNextReviewer,
+    getRoleDisplayName 
+  } = useInvoices();
 
-  // Check if user is admin (username or email is 'admin')
   const isAdmin = user?.username === 'admin' || user?.email === 'admin';
 
-  // Set default screen based on admin status
   useEffect(() => {
     if (isAdmin) {
       setCurrentScreen('users');
@@ -255,72 +262,47 @@ const Dashboard = () => {
   };
 
   const getStageNumber = (status) => {
-    switch (status) {
-      case INVOICE_STATUS.PENDING: return '0/4';
-      case INVOICE_STATUS.REVIEW_1: return '1/4';
-      case INVOICE_STATUS.REVIEW_2: return '2/4';
-      case INVOICE_STATUS.REVIEW_3: return '3/4';
-      case INVOICE_STATUS.PAID: return '4/4';
-      default: return '0/4';
+  switch (status) {
+    case INVOICE_STATUS.PENDING: return '1/8';
+    case INVOICE_STATUS.INITIAL_APPROVAL: return '2/8';
+    case INVOICE_STATUS.TAX_APPROVAL: return '3/8';
+    case INVOICE_STATUS.COST_CONTROL_CAPTURE: return '4/8';
+    case INVOICE_STATUS.FIRST_APPROVAL: return '5/8';
+    case INVOICE_STATUS.SECOND_APPROVAL: return '6/8';
+    case INVOICE_STATUS.PAYMENT: return '7/8';
+    case INVOICE_STATUS.PAID: return '8/8';
+    case INVOICE_STATUS.REJECTED: return 'REJECTED';
+    default: return '0/8';
+  }
+};
+
+// 2. Add handlePay function
+const handlePay = (fileId) => {
+  updateInvoiceStatus(fileId, null, 'pay');
+  setSelectedFiles(new Set());
+};
+
+  const handleViewAndDownload = (invoice) => {
+  setCurrentScreen('fileview');
+  setViewingFile(invoice);
+};
+
+  const handleDownloadFromModal = () => {
+    if (viewingFile) {
+      downloadInvoice(viewingFile);
+      setShowViewModal(false);
+      setViewingFile(null);
     }
   };
 
-  const getNextReviewer = (status) => {
-    const MOCK_USERS = [
-      { role: ROLES.FINANCE_REVIEWER_1, username: 'Quachi' },
-      { role: ROLES.FINANCE_REVIEWER_2, username: 'Vanessa' },
-      { role: ROLES.FINANCE_REVIEWER_3, username: 'Alex' },
-      { role: ROLES.FINANCE_REVIEWER_4, username: 'Michael' }
-    ];
-  
-    switch (status) {
-      case INVOICE_STATUS.PENDING:
-        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_1)?.username;
-      case INVOICE_STATUS.REVIEW_1:
-        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_2)?.username;
-      case INVOICE_STATUS.REVIEW_2:
-        return MOCK_USERS.find(u => u.role === ROLES.FINANCE_REVIEWER_3)?.username;
-      case INVOICE_STATUS.REVIEW_3:
-        return 'Payment Processing';
-      case INVOICE_STATUS.PAID:
-        return 'PAID';
-      default:
-        return 'Unknown';
-    }
-  };
-  
-  const handleApproveAndDownload = (fileId) => {
-    const invoice = invoices.find(inv => inv.id === fileId);
-    if (invoice && selectedFiles.has(fileId)) {
-      updateInvoiceStatus(fileId, getNextStatus(invoice.status));
-      
-      if (invoice.status === INVOICE_STATUS.PENDING) {
-        
-        downloadInvoice(invoice);
-      } else if (invoice.status === INVOICE_STATUS.REVIEW_1 || invoice.status === INVOICE_STATUS.REVIEW_2) {
-        const wantToDownload = window.confirm("Would you like to download this invoice?");
-        if (wantToDownload) {
-          downloadInvoice(invoice);
-        }
-      }
-      
-      setSelectedFiles(new Set());
-    }
+  const handleApprove = (fileId) => {
+    updateInvoiceStatus(fileId, null, 'approve');
+    setSelectedFiles(new Set());
   };
 
-  const getNextStatus = (currentStatus) => {
-    switch (currentStatus) {
-      case INVOICE_STATUS.PENDING:
-        return INVOICE_STATUS.REVIEW_1;
-      case INVOICE_STATUS.REVIEW_1:
-        return INVOICE_STATUS.REVIEW_2;
-      case INVOICE_STATUS.REVIEW_2:
-        return INVOICE_STATUS.REVIEW_3;
-      case INVOICE_STATUS.REVIEW_3:
-        return INVOICE_STATUS.PAID;
-      default:
-        return currentStatus;
-    }
+  const handleReject = (fileId) => {
+    updateInvoiceStatus(fileId, null, 'reject');
+    setSelectedFiles(new Set());
   };
 
   useEffect(() => {
@@ -344,7 +326,7 @@ const Dashboard = () => {
     }
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'GHC'
+      currency: 'GHS'
     }).format(parseFloat(amount));
   };
 
@@ -356,60 +338,7 @@ const Dashboard = () => {
     };
   };
 
-  const PaymentTable = () => (
-    <div className='table-container'>
-    <div className="table-wrapper">
-    <table>
-      <thead>
-        <tr>
-          <th>Action</th>
-          <th>Date</th>
-          <th>Time</th>
-          <th>Amount</th>
-          <th>Pay</th>
-        </tr>
-      </thead>
-      <tbody>
-        {invoices.map((file) => (
-          <tr key={file.id}>
-            <td>
-              {canEditInvoice(file) && (
-                <label className="checkbox-container">
-                  <input
-                    type="checkbox"
-                    checked={selectedFiles.has(file.id)}
-                    onChange={() => handleFileSelection(file.id)}
-                  />
-                  <CheckSquare className="checkbox-icon" />
-                </label>
-              )}
-            </td>
-            <td>{file.date}</td>
-            <td>{file.time}</td>
-            <td>{formatAmount(file.amount)}</td>
-            <td>
-              {canEditInvoice(file) && selectedFiles.has(file.id) && (
-                <button 
-                  className="approve-selected-btn"
-                  onClick={() => handleApproveAndDownload(file.id)}
-                >
-                  Pay
-                </button>
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-    </div>
-    </div>
-  );
-
-  const FinanceTable = () => {
-    if (user?.role === ROLES.FINANCE_REVIEWER_4) {
-      return <PaymentTable />;
-    }
-  
+   const FinanceApprovalTable = () => {
     const groupedInvoices = invoices.reduce((acc, invoice) => {
       if (!acc[invoice.department]) {
         acc[invoice.department] = [];
@@ -417,7 +346,7 @@ const Dashboard = () => {
       acc[invoice.department].push(invoice);
       return acc;
     }, {});
-  
+
     return (
       <div className="table-container">
         {Object.entries(groupedInvoices).map(([department, departmentInvoices]) => (
@@ -433,7 +362,7 @@ const Dashboard = () => {
                     <th>Time</th>
                     <th>Action</th>
                     <th>Approve</th>
-                    <th>Download</th>
+                    <th>View/Download</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -459,21 +388,19 @@ const Dashboard = () => {
                         {canEditInvoice(file) && selectedFiles.has(file.id) && (
                           <button 
                             className="approve-selected-btn"
-                            onClick={() => handleApproveAndDownload(file.id)}
+                            onClick={() => handleApprove(file.id)}
                           >
-                            {file.status === INVOICE_STATUS.REVIEW_3 ? 'Pay' : 'Approve'}
+                            Approve
                           </button>
                         )}
                       </td>
                       <td>
-                        {canEditInvoice(file) && (
-                          <button
-                            className="download-btn"
-                            disabled={!selectedFiles.has(file.id)}
-                          >
-                            <Download size={16} />
-                          </button>
-                        )}
+                        <button
+                          className="download-btn"
+                          onClick={() => handleViewAndDownload(file)}
+                        >
+                          <Eye size={16} />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -485,8 +412,9 @@ const Dashboard = () => {
       </div>
     );
   };
-  
-  const ExcobersTable = () => {
+
+  // Tax Manager table
+  const TaxManagerTable = () => {
     const groupedInvoices = invoices.reduce((acc, invoice) => {
       if (!acc[invoice.department]) {
         acc[invoice.department] = [];
@@ -494,7 +422,7 @@ const Dashboard = () => {
       acc[invoice.department].push(invoice);
       return acc;
     }, {});
-  
+
     return (
       <div className="table-container">
         {Object.entries(groupedInvoices).map(([department, departmentInvoices]) => (
@@ -504,16 +432,22 @@ const Dashboard = () => {
               <table>
                 <thead>
                   <tr>
-                    <th>Action</th>
+                    <th>File</th>
+                    <th>Amount</th>
                     <th>Date</th>
                     <th>Time</th>
-                    <th>Amount</th>
-                    <th>Approve</th>
+                    <th>Action</th>
+                    <th>Accept</th>
+                    <th>View/Download</th>
                   </tr>
                 </thead>
                 <tbody>
                   {departmentInvoices.map((file) => (
                     <tr key={file.id}>
+                      <td>{file.name}</td>
+                      <td>{formatAmount(file.amount)}</td>
+                      <td>{file.date}</td>
+                      <td>{file.time}</td>
                       <td>
                         {canEditInvoice(file) && (
                           <label className="checkbox-container">
@@ -526,18 +460,23 @@ const Dashboard = () => {
                           </label>
                         )}
                       </td>
-                      <td>{file.date}</td>
-                      <td>{file.time}</td>
-                      <td>{formatAmount(file.amount)}</td>
                       <td>
                         {canEditInvoice(file) && selectedFiles.has(file.id) && (
                           <button 
                             className="approve-selected-btn"
-                            onClick={() => handleApproveAndDownload(file.id)}
+                            onClick={() => handleApprove(file.id)}
                           >
-                            Approve
+                            Accept
                           </button>
                         )}
+                      </td>
+                      <td>
+                        <button
+                          className="download-btn"
+                          onClick={() => handleViewAndDownload(file)}
+                        >
+                          <Eye size={16} />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -549,43 +488,290 @@ const Dashboard = () => {
       </div>
     );
   };
+
+  // Cost Control table
+  const CostControlTable = () => {
+    const groupedInvoices = invoices.reduce((acc, invoice) => {
+      if (!acc[invoice.department]) {
+        acc[invoice.department] = [];
+      }
+      acc[invoice.department].push(invoice);
+      return acc;
+    }, {});
+
+    return (
+      <div className="table-container">
+        {Object.entries(groupedInvoices).map(([department, departmentInvoices]) => (
+          <div key={department} className="department-section">
+            <h3 className="department-header">{department}</h3>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>File</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Action</th>
+                    <th>Capture</th>
+                    <th>View/Download</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {departmentInvoices.map((file) => (
+                    <tr key={file.id}>
+                      <td>{file.name}</td>
+                      <td>{formatAmount(file.amount)}</td>
+                      <td>{file.date}</td>
+                      <td>{file.time}</td>
+                      <td>
+                        {canEditInvoice(file) && (
+                          <label className="checkbox-container">
+                            <input
+                              type="checkbox"
+                              checked={selectedFiles.has(file.id)}
+                              onChange={() => handleFileSelection(file.id)}
+                            />
+                            <CheckSquare className="checkbox-icon" />
+                          </label>
+                        )}
+                      </td>
+                      <td>
+                        {canEditInvoice(file) && selectedFiles.has(file.id) && (
+                          <button 
+                            className="approve-selected-btn"
+                            onClick={() => handleApprove(file.id)}
+                          >
+                            Capture
+                          </button>
+                        )}
+                      </td>
+                      <td>
+                        <button
+                          className="download-btn"
+                          onClick={() => handleViewAndDownload(file)}
+                        >
+                          <Eye size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // First/Second Approval table with Accept/Reject options
+  const ApprovalUserTable = () => {
+    const groupedInvoices = invoices.reduce((acc, invoice) => {
+      if (!acc[invoice.department]) {
+        acc[invoice.department] = [];
+      }
+      acc[invoice.department].push(invoice);
+      return acc;
+    }, {});
+
+    return (
+      <div className="table-container">
+        {Object.entries(groupedInvoices).map(([department, departmentInvoices]) => (
+          <div key={department} className="department-section">
+            <h3 className="department-header">{department}</h3>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>File</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Action</th>
+                    <th>Accept</th>
+                    <th>Reject</th>
+                    <th>View/Download</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {departmentInvoices.map((file) => (
+                    <tr key={file.id}>
+                      <td>{file.name}</td>
+                      <td>{formatAmount(file.amount)}</td>
+                      <td>{file.date}</td>
+                      <td>{file.time}</td>
+                      <td>
+                        {canEditInvoice(file) && (
+                          <label className="checkbox-container">
+                            <input
+                              type="checkbox"
+                              checked={selectedFiles.has(file.id)}
+                              onChange={() => handleFileSelection(file.id)}
+                            />
+                            <CheckSquare className="checkbox-icon" />
+                          </label>
+                        )}
+                      </td>
+                      <td>
+                        {canEditInvoice(file) && selectedFiles.has(file.id) && (
+                          <button 
+                            className="approve-selected-btn"
+                            onClick={() => handleApprove(file.id)}
+                          >
+                            ✓ Accept
+                          </button>
+                        )}
+                      </td>
+                      <td>
+                        {canEditInvoice(file) && selectedFiles.has(file.id) && (
+                          <button 
+                            className="reject-selected-btn"
+                            onClick={() => handleReject(file.id)}
+                            style={{backgroundColor: '#dc3545', color: 'white'}}
+                          >
+                            ✗ Reject
+                          </button>
+                        )}
+                      </td>
+                      <td>
+                        <button
+                          className="download-btn"
+                          onClick={() => handleViewAndDownload(file)}
+                        >
+                          <Eye size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Department user table (view only)
   const DepartmentTable = () => (
     <div className='table-container'>
-    <div className="table-wrapper">
-    <table>
-      <thead>
-        <tr>
-          <th>File</th>
-          {/* <th>Type</th> */}
-          <th>Amount</th>
-          <th>Date</th>
-          <th>Time</th>
-          <th>Status</th>
-          <th>Uploader</th>
-        </tr>
-      </thead>
-      <tbody>
-        {invoices.map((file) => (
-          <tr key={file.id}>
-            <td>{file.name}</td>
-            {/* <td>{file.type}</td> */}
-            <td>{formatAmount(file.amount)}</td>
-            <td>{file.date}</td>
-            <td>{file.time}</td>
-            <td>
-              <span className={`status-badge ${file.status.toLowerCase()}`}>
-                {getStageNumber(file.status)} → {getNextReviewer(file.status, file.amount)}
-              </span>
-            </td>
-            <td>{file.sender === user.email ? 'Me' : file.sender}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-    </div>
+      <div className="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Amount</th>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Status</th>
+              <th>Next Reviewer</th>
+              <th>View</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoices.map((file) => (
+              <tr key={file.id}>
+                <td>{file.name}</td>
+                <td>{formatAmount(file.amount)}</td>
+                <td>{file.date}</td>
+                <td>{file.time}</td>
+                <td>
+                  <span className={`status-badge ${file.status.toLowerCase()}`}>
+                    {getStageNumber(file.status)}
+                  </span>
+                </td>
+                <td>{getNextReviewer(file)}</td>
+                <td>
+                  <button
+                    className="download-btn"
+                    onClick={() => handleViewAndDownload(file)}
+                  >
+                    <Eye size={16} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
+const PaymentTable = () => {
+  const groupedInvoices = invoices.reduce((acc, invoice) => {
+    if (!acc[invoice.department]) {
+      acc[invoice.department] = [];
+    }
+    acc[invoice.department].push(invoice);
+    return acc;
+  }, {});
 
+  return (
+    <div className="table-container">
+      {Object.entries(groupedInvoices).map(([department, departmentInvoices]) => (
+        <div key={department} className="department-section">
+          <h3 className="department-header">{department}</h3>
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Amount</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Action</th>
+                  <th>Pay</th>
+                  <th>View/Download</th>
+                </tr>
+              </thead>
+              <tbody>
+                {departmentInvoices.map((file) => (
+                  <tr key={file.id}>
+                    <td>{file.name}</td>
+                    <td>{formatAmount(file.amount)}</td>
+                    <td>{file.date}</td>
+                    <td>{file.time}</td>
+                    <td>
+                      {canEditInvoice(file) && (
+                        <label className="checkbox-container">
+                          <input
+                            type="checkbox"
+                            checked={selectedFiles.has(file.id)}
+                            onChange={() => handleFileSelection(file.id)}
+                          />
+                          <CheckSquare className="checkbox-icon" />
+                        </label>
+                      )}
+                    </td>
+                    <td>
+                      {canEditInvoice(file) && selectedFiles.has(file.id) && (
+                        <button 
+                          className="approve-selected-btn"
+                          onClick={() => handlePay(file.id)}
+                          style={{backgroundColor: '#28a745', color: 'white'}}
+                        >
+                          💰 Pay
+                        </button>
+                      )}
+                    </td>
+                    <td>
+                      <button
+                        className="download-btn"
+                        onClick={() => handleViewAndDownload(file)}
+                      >
+                        <Eye size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
   const DashboardContent = () => {
     const stats = getStats();
     
@@ -612,93 +798,123 @@ const Dashboard = () => {
 
         <div className="top-store">
           <div className="section-header">
-            {/* <h2 style={{color:'green'}}>Files For Review</h2> */}
-            {user?.department === 'FINANCE' && (
-              <span>Finance Review Level: {user?.role.split('_')[2]}</span>
+            <h2 style={{color:'green'}}>
+              {user?.role === ROLES.DEPARTMENT_USER ? 'My Invoices' : 'Files For Review'}
+            </h2>
+            {user?.role !== ROLES.DEPARTMENT_USER && (
+              <span>Role: {getRoleDisplayName(user?.role)}</span>
             )}
           </div>
 
-          {user?.department === 'FINANCE' ? (
-            <FinanceTable />
-          ) : user?.department === 'EXCOBERS' ? (
-            <ExcobersTable />
-          ) : (
-            <DepartmentTable />
-          )}
+          {/* Render appropriate table based on user role */}
+          {user?.role === ROLES.HEAD_OF_FINANCE || 
+ user?.role === ROLES.CFO || 
+ user?.role === ROLES.CEO || 
+ user?.role === ROLES.PC || 
+ user?.role === ROLES.EXCO ? (
+  <FinanceApprovalTable />
+) : user?.role === ROLES.TAX_MANAGER ? (
+  <TaxManagerTable />
+) : user?.role === ROLES.COST_CONTROL ? (
+  <CostControlTable />
+) : user?.role === ROLES.APPROVAL_USER_1 || user?.role === ROLES.APPROVAL_USER_2 ? (
+  <ApprovalUserTable />
+) : user?.role === ROLES.PAYMENT_USER ? (
+  <PaymentTable />
+) : (
+  <DepartmentTable />
+)}
         </div>
+
+        {/* File View Modal */}
+        <FileViewer />
       </>
     );
   };
 
-  const getNavigationItems = () => {
-    // If user is admin, only show Users menu item
-    if (isAdmin) {
-      return [
-        {
-          id: 'users',
-          icon: <UsersIcon size={20} />,
-          label: 'Users',
-          visible: true
-        }
-      ];
-    }
-    
-    // For non-admin users, show all items except Users
-    const items = [
+ const getNavigationItems = () => {
+  // If user is admin, only show Users menu item
+  if (isAdmin) {
+    return [
       {
-        id: 'dashboard',
-        icon: <BarChart3 size={20} />,
-        label: 'Dashboard',
-        visible: true
-      },
-      {
-        id: 'statistics',
-        icon: <BarChart3 size={20} />,
-        label: 'Statistics',
-        visible: true
-      },
-      {
-        id: 'Upload',
-        icon: <Users size={20} />,
-        label: 'Upload',
-        visible: user?.role === 'DEPARTMENT_USER'
-      },
-      {
-        id: 'reports',
-        icon: <FileText size={20} />,
-        label: 'Reports',
-        visible: true
-      },
-      {
-        id: 'POScreen',
-        icon: <FileText size={20} />,
-        label: 'PO',
+        id: 'users',
+        icon: <UsersIcon size={20} />,
+        label: 'Users',
         visible: true
       }
     ];
+  }
   
-    return items.filter(item => item.visible);
-  };
+  // For non-admin users, show all items except Users
+  const items = [
+    {
+      id: 'dashboard',
+      icon: <BarChart3 size={20} />,
+      label: 'Dashboard',
+      visible: true
+    },
+    {
+      id: 'statistics',
+      icon: <BarChart3 size={20} />,
+      label: 'Statistics',
+      visible: true
+    },
+    {
+      id: 'Upload',
+      icon: <Users size={20} />,
+      label: 'Upload',
+      visible: user?.role === 'DEPARTMENT_USER'
+    },
+    {
+      id: 'reports',
+      icon: <FileText size={20} />,
+      label: 'Reports',
+      visible: true
+    },
+    {
+      id: 'POScreen',
+      icon: <FileText size={20} />,
+      label: 'PO',
+      visible: true
+    },
+    {
+      id: 'fileview',
+      icon: <Eye size={20} />,
+      label: 'File View',
+      visible: false // Hidden from navigation but accessible programmatically
+    }
+  ];
+
+  return items.filter(item => item.visible);
+};
   
   const renderScreen = () => {
-    switch(currentScreen) {
-      case 'dashboard':
-        return <DashboardContent />;
-      case 'statistics':
-        return <Statistics />;
-      case 'Upload':
-        return user?.role === 'DEPARTMENT_USER' ? <Upload /> : null;
-      case 'reports':
-        return <Reports />;
-      case 'POScreen':
-        return <POScreen />;
-      case 'users':
-        return <Users />;
-      default:
-        return <DashboardContent />;
-    }
-  };
-  
+  switch(currentScreen) {
+    case 'dashboard':
+      return <DashboardContent />;
+    case 'statistics':
+      return <Statistics />;
+    case 'Upload':
+      return user?.role === 'DEPARTMENT_USER' ? <Upload /> : null;
+    case 'reports':
+      return <Reports />;
+    case 'POScreen':
+      return <POScreen />;
+    case 'users':
+      return <Users />;
+    case 'fileview':
+      return <FileViewer 
+        file={viewingFile} 
+        onBack={() => setCurrentScreen('dashboard')}
+        onDownload={() => downloadInvoice(viewingFile)}
+        formatAmount={formatAmount}
+        getStageNumber={getStageNumber}
+      />;
+    default:
+      return <DashboardContent />;
+  }
+};
+
   return (
     <div className="dashboard-container">
       <div className="dashboard-wrapper">

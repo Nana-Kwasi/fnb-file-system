@@ -1,9 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Download, CheckSquare, Upload, Send } from 'lucide-react';
+import { Download, CheckSquare, Upload, Send, Eye } from 'lucide-react';
 import { useAuth } from '../Context/AuthContext';
 import { useInvoices } from '../Context/InvoiceContext';
 
-const FileUploadButton = ({ fileId, onFileUpload, isSignedFile, hasBeenUploaded }) => {
+const FileUploadButton = ({ fileId, onFileUpload, fileType, hasBeenUploaded, buttonText }) => {
   const [selectedFile, setSelectedFile] = useState(null);
 
   const handleFileChange = (event) => {
@@ -20,7 +20,7 @@ const FileUploadButton = ({ fileId, onFileUpload, isSignedFile, hasBeenUploaded 
     }
   };
 
-  if (isSignedFile || hasBeenUploaded) {
+  if (hasBeenUploaded) {
     return (
       <div className="relative group">
         <button
@@ -28,10 +28,10 @@ const FileUploadButton = ({ fileId, onFileUpload, isSignedFile, hasBeenUploaded 
           className="bg-gray-300 text-gray-500 rounded px-3 py-1 flex items-center gap-2 opacity-50 cursor-not-allowed"
         >
           <Upload size={16} />
-          <span>Upload Signed</span>
+          <span>{buttonText}</span>
         </button>
-        <div className="hidden group-hover:block absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-sm py-1 px-2 rounded whitespace-nowrap">
-          Already sent signed file
+        <div className="hidden group-hover:block absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-sm py-1 px-2 rounded whitespace-nowrap z-10">
+          File already uploaded
         </div>
       </div>
     );
@@ -41,10 +41,10 @@ const FileUploadButton = ({ fileId, onFileUpload, isSignedFile, hasBeenUploaded 
     return (
       <button
         onClick={handleUpload}
-        className="bg-blue-500 text-white rounded px-3 py-1 flex items-center gap-2"
+        className="bg-blue-500 hover:bg-blue-600 text-white rounded px-3 py-1 flex items-center gap-2"
       >
         <Send size={16} />
-        <span>Send {selectedFile.name}</span>
+        <span>Send {selectedFile.name.substring(0, 15)}...</span>
       </button>
     );
   }
@@ -53,118 +53,61 @@ const FileUploadButton = ({ fileId, onFileUpload, isSignedFile, hasBeenUploaded 
     <>
       <input
         type="file"
-        id={`file-${fileId}`}
+        id={`file-${fileType}-${fileId}`}
         onChange={handleFileChange}
         className="hidden"
         accept=".pdf,.doc,.docx"
       />
       <button
-        onClick={() => document.getElementById(`file-${fileId}`).click()}
-        className="bg-gray-500 text-white rounded px-3 py-1 flex items-center gap-2"
+        onClick={() => document.getElementById(`file-${fileType}-${fileId}`).click()}
+        className="bg-blue-500 hover:bg-blue-600 text-white rounded px-3 py-1 flex items-center gap-2"
       >
         <Upload size={16} />
-        <span>Upload Signed</span>
+        <span>{buttonText}</span>
       </button>
     </>
   );
 };
 
 const POScreen = () => {
-  const [selectedForApproval, setSelectedForApproval] = useState(() => {
-    const saved = localStorage.getItem('selectedForApproval');
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  });
-  
-  const [uploadedFiles, setUploadedFiles] = useState(() => {
-    const saved = localStorage.getItem('uploadedFiles');
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  });
-  
-  const [approvedFiles, setApprovedFiles] = useState(() => {
-    const saved = localStorage.getItem('approvedFiles');
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  });
-
-  const { user } = useAuth();
+  const { user, ROLES } = useAuth();
   const { 
     poFiles, 
     downloadPOFile,
     uploadSignedPOFile,
+    uploadWorkedPOFile,
     updatePOFileStatus,
     PO_STATUS 
   } = useInvoices();
 
-  useEffect(() => {
-    localStorage.setItem('selectedForApproval', JSON.stringify([...selectedForApproval]));
-  }, [selectedForApproval]);
-
-  useEffect(() => {
-    localStorage.setItem('uploadedFiles', JSON.stringify([...uploadedFiles]));
-  }, [uploadedFiles]);
-
-  useEffect(() => {
-    localStorage.setItem('approvedFiles', JSON.stringify([...approvedFiles]));
-  }, [approvedFiles]);
-
-  useEffect(() => {
-    const approvedFromFiles = poFiles
-      .filter(file => file.status === PO_STATUS.APPROVED)
-      .map(file => file.id);
-    
-    setApprovedFiles(prev => {
-      const newApproved = new Set([...prev, ...approvedFromFiles]);
-      localStorage.setItem('approvedFiles', JSON.stringify([...newApproved]));
-      return newApproved;
-    });
-  }, [poFiles, PO_STATUS.APPROVED]);
-
-  const handleUpload = async (fileId, file) => {
+  const handleWorkedFileUpload = async (fileId, file) => {
     try {
-      await uploadSignedPOFile(fileId, file);
-      setUploadedFiles(prev => {
-        const newUploaded = new Set(prev);
-        newUploaded.add(fileId);
-        return newUploaded;
-      });
+      await uploadWorkedPOFile(fileId, file);
+      alert('Worked file uploaded successfully!');
     } catch (error) {
-      console.error('Error uploading signed PO:', error);
+      console.error('Error uploading worked PO:', error);
+      alert('Error uploading worked file. Please try again.');
     }
   };
 
-  const handleApprovalSelection = useCallback((fileId) => {
-    if (!approvedFiles.has(fileId)) {
-      setSelectedForApproval(prev => {
-        const newSelected = new Set(prev);
-        if (newSelected.has(fileId)) {
-          newSelected.delete(fileId);
-        } else {
-          newSelected.add(fileId);
-        }
-        return newSelected;
-      });
+  const handleSignedFileUpload = async (fileId, file) => {
+    try {
+      await uploadSignedPOFile(fileId, file);
+      alert('Signed file uploaded successfully!');
+    } catch (error) {
+      console.error('Error uploading signed PO:', error);
+      alert('Error uploading signed file. Please try again.');
     }
-  }, [approvedFiles]);
+  };
 
-  const handleApprove = useCallback((fileId) => {
-    updatePOFileStatus(fileId, PO_STATUS.APPROVED);
-    setApprovedFiles(prev => {
-      const newApproved = new Set(prev);
-      newApproved.add(fileId);
-      return newApproved;
-    });
-    setSelectedForApproval(prev => {
-      const newSelected = new Set(prev);
-      newSelected.delete(fileId);
-      return newSelected;
-    });
-  }, [updatePOFileStatus, PO_STATUS.APPROVED]);
+  // Cost Control Table - shows files that need their review and completed files
+  const CostControlTable = useCallback(() => {
+    const costControlFiles = poFiles.filter(file => 
+      file.status === PO_STATUS.COST_CONTROL_REVIEW || 
+      file.status === PO_STATUS.SIGNED
+    );
 
-  const isFileApproved = useCallback((file) => {
-    return approvedFiles.has(file.id) || file.status === PO_STATUS.APPROVED;
-  }, [approvedFiles, PO_STATUS.APPROVED]);
-
-  const FinanceTable = useCallback(() => {
-    const groupedPOFiles = poFiles.reduce((acc, file) => {
+    const groupedFiles = costControlFiles.reduce((acc, file) => {
       if (!acc[file.department]) {
         acc[file.department] = [];
       }
@@ -174,173 +117,358 @@ const POScreen = () => {
 
     return (
       <div className="table-container">
-        {Object.entries(groupedPOFiles).map(([department, departmentFiles]) => (
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-blue-600">Cost Control Dashboard</h3>
+          <p className="text-sm text-gray-600">Review PO files and upload worked versions</p>
+        </div>
+        
+        {Object.entries(groupedFiles).map(([department, departmentFiles]) => (
           <div key={department} className="department-section mb-8">
-            <h3 className="text-lg font-semibold mb-4">{department}</h3>
+            <h4 className="text-md font-semibold mb-4 bg-gray-100 px-4 py-2 rounded">{department} Department</h4>
             <div className="bg-white rounded-lg shadow overflow-x-auto">
               <table className="min-w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-2">Select</th>
-                    <th className="px-4 py-2">Date</th>
-                    <th className="px-4 py-2">Time</th>
-                    <th className="px-4 py-2">Uploader</th>
-                    <th className="px-4 py-2">Download</th>
-                    <th className="px-4 py-2">Upload Signed</th>
-                    <th className="px-4 py-2">Status</th>
+                    <th className="px-4 py-2 text-left">Date</th>
+                    <th className="px-4 py-2 text-left">Time</th>
+                    <th className="px-4 py-2 text-left">Uploader</th>
+                    <th className="px-4 py-2 text-left">Status</th>
+                    <th className="px-4 py-2 text-left">Original File</th>
+                    <th className="px-4 py-2 text-left">Upload Worked</th>
+                    <th className="px-4 py-2 text-left">Signed File</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {departmentFiles.map((file) => {
-                    const fileApproved = isFileApproved(file);
-                    return (
-                      <tr key={file.id} className="border-t">
-                        <td className="px-4 py-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedForApproval.has(file.id)}
-                            onChange={() => handleApprovalSelection(file.id)}
-                            disabled={fileApproved}
-                            className={`rounded border-gray-300 ${
-                              fileApproved ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
-                          />
-                        </td>
-                        <td className="px-4 py-2">{file.date}</td>
-                        <td className="px-4 py-2">{file.time}</td>
-                        <td className="px-4 py-2">{file.username}</td>
-                        <td className="px-4 py-2">
-                          <button
-                            onClick={() => downloadPOFile(file)}
-                            className="text-gray-600 hover:text-gray-900"
-                          >
-                            <Download size={16} />
-                          </button>
-                        </td>
-                        <td className="px-4 py-2">
+                  {departmentFiles.map((file) => (
+                    <tr key={file.id} className="border-t hover:bg-gray-50">
+                      <td className="px-4 py-2">{file.date}</td>
+                      <td className="px-4 py-2">{file.time}</td>
+                      <td className="px-4 py-2">{file.username}</td>
+                      <td className="px-4 py-2">
+                        <span className={`px-2 py-1 rounded text-sm ${
+                          file.status === PO_STATUS.SIGNED 
+                            ? 'bg-green-100 text-green-800'
+                            : file.status === PO_STATUS.HEAD_OF_FINANCE_REVIEW
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {file.status === PO_STATUS.COST_CONTROL_REVIEW ? 'Needs Review' :
+                           file.status === PO_STATUS.HEAD_OF_FINANCE_REVIEW ? 'With Finance Head' :
+                           file.status === PO_STATUS.SIGNED ? 'Completed' : file.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <button
+                          onClick={() => downloadPOFile(file, 'original')}
+                          className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                          title={`Download: ${file.name}`}
+                        >
+                          <Download size={16} />
+                          <span className="text-sm">Original</span>
+                        </button>
+                      </td>
+                      <td className="px-4 py-2">
+                        {file.status === PO_STATUS.COST_CONTROL_REVIEW ? (
                           <FileUploadButton
                             fileId={file.id}
-                            onFileUpload={handleUpload}
-                            isSignedFile={file.signedContent !== null}
-                            hasBeenUploaded={uploadedFiles.has(file.id)}
+                            onFileUpload={handleWorkedFileUpload}
+                            fileType="worked"
+                            hasBeenUploaded={!!file.workedContent}
+                            buttonText="Upload Worked"
                           />
-                        </td>
-                        <td className="px-4 py-2">
-                          {fileApproved ? (
-                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded">
-                              Approved
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleApprove(file.id)}
-                              disabled={!selectedForApproval.has(file.id)}
-                              className="bg-green-500 text-white px-3 py-1 rounded disabled:bg-gray-300"
-                            >
-                              Approve
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                        ) : file.workedContent ? (
+                          <button
+                            onClick={() => downloadPOFile(file, 'worked')}
+                            className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                            title={`Download worked file: ${file.workedFileName || `worked_${file.name}`}`}
+                          >
+                            <Download size={16} />
+                            <span className="text-sm">Worked</span>
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2">
+                        {file.signedContent ? (
+                          <button
+                            onClick={() => downloadPOFile(file, 'signed')}
+                            className="text-purple-600 hover:text-purple-900 flex items-center gap-1"
+                            title={`Download signed file: ${file.signedFileName || `signed_${file.name}`}`}
+                          >
+                            <Download size={16} />
+                            <span className="text-sm">Signed</span>
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 text-sm">Pending</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           </div>
         ))}
+        
+        {Object.keys(groupedFiles).length === 0 && (
+          <div className="bg-white rounded-lg shadow p-8 text-center">
+            <p className="text-gray-500">No PO files require your attention at this time.</p>
+          </div>
+        )}
       </div>
     );
-  }, [poFiles, selectedForApproval, handleApprovalSelection, downloadPOFile, handleApprove, approvedFiles, uploadedFiles, isFileApproved]);
+  }, [poFiles, PO_STATUS, downloadPOFile, handleWorkedFileUpload]);
 
+  // Head of Finance Table - shows files that cost control has worked on
+  const HeadOfFinanceTable = useCallback(() => {
+    const financeFiles = poFiles.filter(file => 
+      file.status === PO_STATUS.HEAD_OF_FINANCE_REVIEW || 
+      file.status === PO_STATUS.SIGNED
+    );
+
+    const groupedFiles = financeFiles.reduce((acc, file) => {
+      if (!acc[file.department]) {
+        acc[file.department] = [];
+      }
+      acc[file.department].push(file);
+      return acc;
+    }, {});
+
+    return (
+      <div className="table-container">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-green-600">Head of Finance Dashboard</h3>
+          <p className="text-sm text-gray-600">Review worked files and upload signed versions</p>
+        </div>
+        
+        {Object.entries(groupedFiles).map(([department, departmentFiles]) => (
+          <div key={department} className="department-section mb-8">
+            <h4 className="text-md font-semibold mb-4 bg-gray-100 px-4 py-2 rounded">{department} Department</h4>
+            <div className="bg-white rounded-lg shadow overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left">Date</th>
+                    <th className="px-4 py-2 text-left">Time</th>
+                    <th className="px-4 py-2 text-left">Uploader</th>
+                    <th className="px-4 py-2 text-left">Worked By</th>
+                    <th className="px-4 py-2 text-left">Status</th>
+                    <th className="px-4 py-2 text-left">Original File</th>
+                    <th className="px-4 py-2 text-left">Worked File</th>
+                    <th className="px-4 py-2 text-left">Upload Signed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {departmentFiles.map((file) => (
+                    <tr key={file.id} className="border-t hover:bg-gray-50">
+                      <td className="px-4 py-2">{file.date}</td>
+                      <td className="px-4 py-2">{file.time}</td>
+                      <td className="px-4 py-2">{file.username}</td>
+                      <td className="px-4 py-2">
+                        {file.costControlWorkedBy ? (
+                          <span className="text-sm text-blue-600">
+                            {file.costControlWorkedBy.split('@')[0]}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className={`px-2 py-1 rounded text-sm ${
+                          file.status === PO_STATUS.SIGNED 
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {file.status === PO_STATUS.HEAD_OF_FINANCE_REVIEW ? 'Needs Signing' :
+                           file.status === PO_STATUS.SIGNED ? 'Completed' : file.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <button
+                          onClick={() => downloadPOFile(file, 'original')}
+                          className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                          title={`Download: ${file.name}`}
+                        >
+                          <Download size={16} />
+                          <span className="text-sm">Original</span>
+                        </button>
+                      </td>
+                      <td className="px-4 py-2">
+                        {file.workedContent ? (
+                          <button
+                            onClick={() => downloadPOFile(file, 'worked')}
+                            className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                            title={`Download worked file: ${file.workedFileName || `worked_${file.name}`}`}
+                          >
+                            <Download size={16} />
+                            <span className="text-sm">Worked</span>
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2">
+                        {file.status === PO_STATUS.HEAD_OF_FINANCE_REVIEW ? (
+                          <FileUploadButton
+                            fileId={file.id}
+                            onFileUpload={handleSignedFileUpload}
+                            fileType="signed"
+                            hasBeenUploaded={!!file.signedContent}
+                            buttonText="Upload Signed"
+                          />
+                        ) : file.signedContent ? (
+                          <button
+                            onClick={() => downloadPOFile(file, 'signed')}
+                            className="text-purple-600 hover:text-purple-900 flex items-center gap-1"
+                            title={`Download signed file: ${file.signedFileName || `signed_${file.name}`}`}
+                          >
+                            <Download size={16} />
+                            <span className="text-sm">Signed</span>
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+        
+        {Object.keys(groupedFiles).length === 0 && (
+          <div className="bg-white rounded-lg shadow p-8 text-center">
+            <p className="text-gray-500">No PO files require your attention at this time.</p>
+          </div>
+        )}
+      </div>
+    );
+  }, [poFiles, PO_STATUS, downloadPOFile, handleSignedFileUpload]);
+
+  // Department User Table - shows their own files and status
   const DepartmentTable = useCallback(() => {
     const departmentFiles = poFiles.filter(file => 
-      file.department === user.department
+      file.originalUploader === user.email
     );
 
     return (
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="min-w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2">Date</th>
-              <th className="px-4 py-2">Time</th>
-              <th className="px-4 py-2">Uploader</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Original</th>
-              <th className="px-4 py-2">Signed</th>
-            </tr>
-          </thead>
-          <tbody>
-            {departmentFiles.map((file) => (
-              <tr key={file.id} className="border-t">
-                <td className="px-4 py-2">{file.date}</td>
-                <td className="px-4 py-2">{file.time}</td>
-                <td className="px-4 py-2">
-                  {file.uploadedBy === user.email ? 'Me' : file.username}
-                </td>
-                <td className="px-4 py-2">
-                  <span className={`px-2 py-1 rounded ${
-                    file.status === PO_STATUS.SIGNED 
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {file.status}
-                  </span>
-                </td>
-                <td className="px-4 py-2">
-                  <button
-                    onClick={() => downloadPOFile(file)}
-                    className="text-gray-600 hover:text-gray-900"
-                  >
-                    <Download size={16} />
-                  </button>
-                </td>
-                <td className="px-4 py-2">
-                  {file.signedContent ? (
+      <div className="table-container">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-indigo-600">My PO Files</h3>
+          <p className="text-sm text-gray-600">Track the status of your submitted PO files</p>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-2 text-left">Date</th>
+                <th className="px-4 py-2 text-left">Time</th>
+                <th className="px-4 py-2 text-left">File Name</th>
+                <th className="px-4 py-2 text-left">Status</th>
+                <th className="px-4 py-2 text-left">Original File</th>
+                <th className="px-4 py-2 text-left">Worked File</th>
+                <th className="px-4 py-2 text-left">Signed File</th>
+              </tr>
+            </thead>
+            <tbody>
+              {departmentFiles.map((file) => (
+                <tr key={file.id} className="border-t hover:bg-gray-50">
+                  <td className="px-4 py-2">{file.date}</td>
+                  <td className="px-4 py-2">{file.time}</td>
+                  <td className="px-4 py-2" title={file.name}>
+                    {file.name.length > 30 ? `${file.name.substring(0, 30)}...` : file.name}
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className={`px-2 py-1 rounded text-sm ${
+                      file.status === PO_STATUS.SIGNED 
+                        ? 'bg-green-100 text-green-800'
+                        : file.status === PO_STATUS.HEAD_OF_FINANCE_REVIEW
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {file.status === PO_STATUS.COST_CONTROL_REVIEW ? 'Under Review' :
+                       file.status === PO_STATUS.HEAD_OF_FINANCE_REVIEW ? 'Being Signed' :
+                       file.status === PO_STATUS.SIGNED ? 'Completed' : file.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2">
                     <button
-                      onClick={() => downloadPOFile(file, true)}
-                      className="text-gray-600 hover:text-gray-900"
-                      title={`Download signed file: ${file.signedFileName || `signed_${file.name}`}`}
+                      onClick={() => downloadPOFile(file, 'original')}
+                      className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                      title={`Download: ${file.name}`}
                     >
                       <Download size={16} />
                     </button>
-                  ) : (
-                    <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                      Pending
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }, [poFiles, user, downloadPOFile, PO_STATUS.SIGNED]);
-
-  return (
-    <div className="p-4">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold">Purchase Order Files</h2>
-        {user?.department === 'FINANCE' && (
-          <span className="text-gray-600">Finance Department PO Review</span>
+                  </td>
+                  <td className="px-4 py-2">
+                    {file.workedContent ? (
+                      <button
+                        onClick={() => downloadPOFile(file, 'worked')}
+                        className="text-green-600 hover:text-green-900 flex items-center gap-1"
+                        title={`Download worked file: ${file.workedFileName || `worked_${file.name}`}`}
+                      >
+                        <Download size={16} />
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-sm">Pending</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {file.signedContent ? (
+                      <button
+                        onClick={() => downloadPOFile(file, 'signed')}
+                        className="text-purple-600 hover:text-purple-900 flex items-center gap-1"
+                        title={`Download signed file: ${file.signedFileName || `signed_${file.name}`}`}
+                      >
+                        <Download size={16} />
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-sm">Pending</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        
+        {departmentFiles.length === 0 && (
+          <div className="bg-white rounded-lg shadow p-8 text-center">
+            <p className="text-gray-500">You haven't uploaded any PO files yet.</p>
+          </div>
         )}
       </div>
+    );
+  }, [poFiles, user.email, downloadPOFile, PO_STATUS]);
 
-      {user?.department === 'FINANCE' ? (
-        <FinanceTable />
-      ) : (
-        <DepartmentTable />
+  return (
+    <div className="p-4 min-h-screen bg-gray-50">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-800">Purchase Order Management</h2>
+        <p className="text-gray-600 mt-1">
+          {user?.role === ROLES.COST_CONTROL && "Review and process PO files"}
+          {user?.role === ROLES.HEAD_OF_FINANCE && "Sign processed PO files"}
+          {user?.role === ROLES.DEPARTMENT_USER && "Track your submitted PO files"}
+        </p>
+      </div>
+
+      {user?.role === ROLES.COST_CONTROL && <CostControlTable />}
+      {user?.role === ROLES.HEAD_OF_FINANCE && <HeadOfFinanceTable />}
+      {user?.role === ROLES.DEPARTMENT_USER && <DepartmentTable />}
+      
+      {!user?.role && (
+        <div className="bg-white rounded-lg shadow p-8 text-center">
+          <p className="text-gray-500">Unable to determine user role. Please contact support.</p>
+        </div>
       )}
     </div>
   );
 };
 
 export default POScreen;
-
-
-
-
 
 
 

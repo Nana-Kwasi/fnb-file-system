@@ -1,12 +1,22 @@
 import React from 'react';
 import { useAuth } from '../Context/AuthContext';
-import "../file.css"
+import "../file.css";
 
 const FileStatusCircles = ({ invoices, INVOICE_STATUS }) => {
   const { user } = useAuth();
 
+  // Early return if user is not available
+  if (!user) {
+    return null;
+  }
+
+  // Ensure invoices array exists
+  if (!invoices || !Array.isArray(invoices)) {
+    return null;
+  }
+
   const getFinanceUserCounts = () => {
-    if (!invoices || invoices.length === 0) {
+    if (invoices.length === 0) {
       return {
         approvedCount: 0,
         pendingCount: 0,
@@ -84,8 +94,13 @@ const FileStatusCircles = ({ invoices, INVOICE_STATUS }) => {
   const getDepartmentUserCounts = () => {
     const departmentInvoices = invoices.filter(inv => inv.department === user.department);
     
-    const approvedCount = departmentInvoices.filter(inv => inv.status === INVOICE_STATUS.PAID).length;
-    const pendingCount = departmentInvoices.filter(inv => inv.status !== INVOICE_STATUS.PAID).length;
+    const approvedCount = departmentInvoices.filter(inv => 
+      inv.status === INVOICE_STATUS.PAID
+    ).length;
+    
+    const pendingCount = departmentInvoices.filter(inv => 
+      inv.status !== INVOICE_STATUS.PAID
+    ).length;
     
     const total = approvedCount + pendingCount;
     
@@ -97,24 +112,34 @@ const FileStatusCircles = ({ invoices, INVOICE_STATUS }) => {
     };
   };
 
-  const stats = user.department === 'FINANCE' 
-    ? getFinanceUserCounts() 
-    : getDepartmentUserCounts();
+  const isFinanceUser = user.department === 'FINANCE';
+  const stats = isFinanceUser ? getFinanceUserCounts() : getDepartmentUserCounts();
 
-  const circles = [
-    ...(user.department !== 'FINANCE' ? [{
-      label: 'Department Files Approved',
-      count: stats.approvedCount,
-      percentage: stats.approvedPercentage,
-      circleClass: 'paid'
-    }] : []),
-    {
-      label: user.department === 'FINANCE' ? 'Files Pending Your Approval' : 'Department Files Pending',
+  const getCircleData = () => {
+    const circles = [];
+    
+    // Add department approved files circle for non-finance users
+    if (!isFinanceUser) {
+      circles.push({
+        label: 'Department Files Approved',
+        count: stats.approvedCount,
+        percentage: stats.approvedPercentage,
+        circleClass: 'paid'
+      });
+    }
+    
+    // Add pending files circle for all users
+    circles.push({
+      label: isFinanceUser ? 'Files Pending Your Approval' : 'Department Files Pending',
       count: stats.pendingCount,
       percentage: stats.pendingPercentage,
       circleClass: 'first-stage'
-    }
-  ];
+    });
+    
+    return circles;
+  };
+
+  const circles = getCircleData();
 
   return (
     <div className="file-status-container">
@@ -140,45 +165,3 @@ const FileStatusCircles = ({ invoices, INVOICE_STATUS }) => {
 };
 
 export default FileStatusCircles;
-
-
-
-
-
-
-
-
-
-
-// CREATE TABLE po_files (
-//   id SERIAL PRIMARY KEY,
-//   name VARCHAR(255) NOT NULL,
-//   type VARCHAR(50),
-//   date DATE NOT NULL,
-//   time TIME NOT NULL,
-//   status VARCHAR(50) NOT NULL,
-//   sender VARCHAR(100) NOT NULL,
-//   username VARCHAR(100) NOT NULL,
-//   department VARCHAR(50) NOT NULL,
-//   uploaded_by VARCHAR(100) NOT NULL,
-//   size DECIMAL(10, 2) NOT NULL,
-//   last_modified TIMESTAMP NOT NULL,
-//   content TEXT NOT NULL,
-//   signed_content TEXT,
-//   signed_file_name VARCHAR(255),
-//   signed_file_type VARCHAR(50)
-// );
-// CREATE TABLE invoices ( 
-//   id SERIAL PRIMARY KEY,
-//    name VARCHAR(255) NOT NULL, 
-//    type VARCHAR(50), 
-//    date DATE NOT NULL, 
-//    time TIME NOT NULL, 
-//    status VARCHAR(50) NOT NULL, 
-//    amount DECIMAL(10, 2) NOT NULL, 
-//    sender VARCHAR(100) NOT NULL, 
-//    department VARCHAR(50) NOT NULL, 
-//    uploaded_by VARCHAR(100) NOT NULL, 
-//    size DECIMAL(10, 2) NOT NULL, 
-//    last_modified TIMESTAMP NOT NULL, 
-//    content TEXT NOT NULL );

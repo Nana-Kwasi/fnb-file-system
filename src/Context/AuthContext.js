@@ -1,11 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export const ROLES = {
-  FINANCE_REVIEWER_1: 'FINANCE_REVIEWER_1',
-  FINANCE_REVIEWER_2: 'FINANCE_REVIEWER_2',
-  FINANCE_REVIEWER_3: 'FINANCE_REVIEWER_3',
-  FINANCE_REVIEWER_4: 'FINANCE_REVIEWER_4',
-  EXCOBERS_REVIEWER: 'EXCOBERS_REVIEWER',
+  HEAD_OF_FINANCE: 'HEAD_OF_FINANCE',
+  CFO: 'CFO',
+  CEO: 'CEO',
+  PC: 'PC',
+  EXCO: 'EXCO',
+  TAX_MANAGER: 'TAX_MANAGER',
+  COST_CONTROL: 'COST_CONTROL',
+  APPROVAL_USER_1: 'APPROVAL_USER_1',
+  APPROVAL_USER_2: 'APPROVAL_USER_2',
+  PAYMENT_USER: 'PAYMENT_USER', // New role for payment processing
   DEPARTMENT_USER: 'DEPARTMENT_USER',
 };
 
@@ -19,57 +24,84 @@ export const DEPARTMENTS = {
   LEGAL: 'LEGAL',
   COMPLIANCE: 'COMPLIANCE',
   EXCOBERS: 'EXCOBERS',
+  TAX: 'TAX',
+  COST_CONTROL: 'COST_CONTROL',
 };
 
 // Mock users for testing
 const MOCK_USERS = [
     {
-      email: 'finance1fnb@gmail.com',
+      email: 'headoffinance@fnb.co.za',
       password: 'password',
-      name: 'Finance Reviewer 1',
+      name: 'Head of Finance',
       username: 'Quachi',
       department: DEPARTMENTS.FINANCE,
-      role: ROLES.FINANCE_REVIEWER_1,
+      role: ROLES.HEAD_OF_FINANCE,
     },
     {
-      email: 'finance2fnb@gmail.com',
+      email: 'cfo@fnb.co.za',
       password: 'password',
-      name: 'Finance Reviewer 2',
+      name: 'Chief Financial Officer',
       username: 'Vanessa',
       department: DEPARTMENTS.FINANCE,
-      role: ROLES.FINANCE_REVIEWER_2,
+      role: ROLES.CFO,
     },
     {
-      email: 'finance3fnb@gmail.com',
+      email: 'ceo@fnb.co.za',
       password: 'password',
-      name: 'Finance Reviewer 3',
+      name: 'Chief Executive Officer',
       username: 'Alex',
       department: DEPARTMENTS.FINANCE,
-      role: ROLES.FINANCE_REVIEWER_3,
+      role: ROLES.CEO,
     },
+    
     {
-      email: 'finance4b@fnb.co.za',
+      email: 'pc@fnb.co.za',
       password: 'password',
-      name: 'Finance Payment Officer',
+      name: 'PC Officer',
       username: 'Michael',
       department: DEPARTMENTS.FINANCE,
-      role: ROLES.FINANCE_REVIEWER_4,
+      role: ROLES.PC,
     },
     {
-      email: 'excobers1@fnb.co.za',
+      email: 'exco@fnb.co.za',
       password: 'password',
-      name: 'Excobers Reviewer',
+      name: 'Executive Committee',
       username: 'John Executive',
       department: DEPARTMENTS.EXCOBERS,
-      role: ROLES.EXCOBERS_REVIEWER,
+      role: ROLES.EXCO,
     },
     {
-      email: 'excobers2@fnb.co.za',
+      email: 'taxmanager@fnb.co.za',
       password: 'password',
-      name: 'Excobers Reviewer',
-      username: 'Jane Executive',
-      department: DEPARTMENTS.EXCOBERS,
-      role: ROLES.EXCOBERS_REVIEWER,
+      name: 'Tax Manager',
+      username: 'Frank Baidoo',
+      department: DEPARTMENTS.TAX,
+      role: ROLES.TAX_MANAGER,
+    },
+    {
+      email: 'costcontrol@fnb.co.za',
+      password: 'password',
+      name: 'Cost Control',
+      username: 'Christiana Duah',
+      department: DEPARTMENTS.COST_CONTROL,
+      role: ROLES.COST_CONTROL,
+    },
+    {
+      email: 'approval1@fnb.co.za',
+      password: 'password',
+      name: 'First Approval User',
+      username: 'Approval User 1',
+      department: DEPARTMENTS.FINANCE,
+      role: ROLES.APPROVAL_USER_1,
+    },
+    {
+      email: 'approval2@fnb.co.za',
+      password: 'password',
+      name: 'Second Approval User',
+      username: 'Approval User 2',
+      department: DEPARTMENTS.FINANCE,
+      role: ROLES.APPROVAL_USER_2,
     },
     {
       email: 'samueltetteh@fnb.co.za',
@@ -134,7 +166,15 @@ const MOCK_USERS = [
       username: 'Dickson',
       department: DEPARTMENTS.MARKETTING,
       role: ROLES.DEPARTMENT_USER,
-    },
+  },
+   {
+  email: 'payment@fnb.co.za',
+  password: 'password',
+  name: 'Payment Officer',
+  username: 'Payment Officer',
+  department: DEPARTMENTS.FINANCE,
+  role: ROLES.PAYMENT_USER,
+}
   ];
 
 const AuthContext = createContext(null);
@@ -144,7 +184,9 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
+    // Note: In a real environment, you would use localStorage here
+    // For demo purposes, we'll use a variable to simulate storage
+    const storedUser = null; // localStorage.getItem('user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
@@ -165,7 +207,8 @@ export const AuthProvider = ({ children }) => {
         role: foundUser.role,
       };
       setUser(userInfo);
-      localStorage.setItem('user', JSON.stringify(userInfo));
+      // Note: In a real environment, you would use localStorage here
+      // localStorage.setItem('user', JSON.stringify(userInfo));
       return true;
     }
     return false;
@@ -173,9 +216,10 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    sessionStorage.removeItem('token');
+    // Note: In a real environment, you would use localStorage here
+    // localStorage.removeItem('user');
+    // localStorage.removeItem('token');
+    // sessionStorage.removeItem('token');
   };
 
   if (loading) {
