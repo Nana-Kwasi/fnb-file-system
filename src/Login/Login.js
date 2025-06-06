@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../Context/AuthContext";
 import "../login.css";
+
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,24 +14,28 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    
+    setLoading(true);
 
-    if (email.length > 25) {
-      setError("F number is incorrect");
+    // Basic validation
+    if (!email || !password) {
+      setError("Email and password are required");
+      setLoading(false);
       return;
     }
 
-    setLoading(true);
+    // Email length validation (keeping your original logic)
+    if (email.length > 50) {
+      setError("Email is too long");
+      setLoading(false);
+      return;
+    }
 
     try {
-      const success = await login(email, password);
-      if (success) {
-        navigate("/dashboard");
-      } else {
-        setError("Invalid email or password");
-      }
+      await login(email, password);
+      navigate("/dashboard");
     } catch (err) {
-      setError("An error occurred during login");
+      console.error('Login error:', err);
+      setError(err.message || "Login failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }
@@ -40,15 +45,16 @@ const Login = () => {
     <div className="login-container">
       <div className="login-card">
         <img src="/FNB logo.png" alt="FNB Logo" className="login-logo" />
-        <h2>Welcome to FNB Admin</h2>
+        <h2>Welcome to FNB File System</h2>
         <form onSubmit={handleSubmit}>
           <input
-            type="text"
-            placeholder="Email"
+            type="email"
+            placeholder="Email Address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            maxLength={25}
+            maxLength={50}
             required
+            disabled={loading}
           />
           <input
             type="password"
@@ -56,12 +62,32 @@ const Login = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            disabled={loading}
+            minLength={6}
           />
           {error && <p className="error-message">{error}</p>}
-          <button type="submit" className="login-button">
+          <button 
+            type="submit" 
+            className="login-button"
+            disabled={loading}
+          >
             {loading ? <span className="spinner"></span> : "Login"}
           </button>
         </form>
+        
+        {/* Optional: Add test credentials for development */}
+        <div style={{ 
+          marginTop: '20px', 
+          padding: '10px', 
+          backgroundColor: '#f5f5f5', 
+          borderRadius: '4px',
+          fontSize: '12px',
+          color: '#666'
+        }}>
+          <strong>Example:</strong><br/>
+          Email: user@fnb.co.za<br/>
+          Password: 12345
+        </div>
       </div>
     </div>
   );

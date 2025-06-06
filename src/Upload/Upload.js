@@ -41,11 +41,9 @@ const Upload = () => {
       return;
     }
 
-    // Estimate total size of selected files
     const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-    const estimatedBase64Size = totalSize * 1.37; // Base64 encoding increases size by ~37%
+    const estimatedBase64Size = totalSize * 1.37; 
 
-    // Check if we have enough storage
     try {
       const testKey = 'storage-test';
       localStorage.setItem(testKey, '0');
@@ -55,7 +53,7 @@ const Upload = () => {
         return total + localStorage[key].length;
       }, 0);
 
-      const estimatedAvailable = 5 * 1024 * 1024 - currentStorageUsed; // Estimate 5MB limit
+      const estimatedAvailable = 5 * 1024 * 1024 - currentStorageUsed; 
 
       if (estimatedBase64Size > estimatedAvailable) {
         alert('Not enough storage space available. Please delete some existing files before uploading new ones.');
@@ -308,6 +306,15 @@ const Upload = () => {
 };
 
 export default Upload;
+
+
+
+
+
+
+
+
+
 
 // import React, { useState, useRef } from 'react';
 // import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';

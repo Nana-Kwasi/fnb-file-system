@@ -10,7 +10,7 @@ export const ROLES = {
   COST_CONTROL: 'COST_CONTROL',
   APPROVAL_USER_1: 'APPROVAL_USER_1',
   APPROVAL_USER_2: 'APPROVAL_USER_2',
-  PAYMENT_USER: 'PAYMENT_USER', // New role for payment processing
+  PAYMENT_USER: 'PAYMENT_USER',
   DEPARTMENT_USER: 'DEPARTMENT_USER',
 };
 
@@ -28,211 +28,161 @@ export const DEPARTMENTS = {
   COST_CONTROL: 'COST_CONTROL',
 };
 
-// Mock users for testing
-const MOCK_USERS = [
-    {
-      email: 'headoffinance@fnb.co.za',
-      password: 'password',
-      name: 'Head of Finance',
-      username: 'Quachi',
-      department: DEPARTMENTS.FINANCE,
-      role: ROLES.HEAD_OF_FINANCE,
-    },
-    {
-      email: 'cfo@fnb.co.za',
-      password: 'password',
-      name: 'Chief Financial Officer',
-      username: 'Vanessa',
-      department: DEPARTMENTS.FINANCE,
-      role: ROLES.CFO,
-    },
-    {
-      email: 'ceo@fnb.co.za',
-      password: 'password',
-      name: 'Chief Executive Officer',
-      username: 'Alex',
-      department: DEPARTMENTS.FINANCE,
-      role: ROLES.CEO,
-    },
-    
-    {
-      email: 'pc@fnb.co.za',
-      password: 'password',
-      name: 'PC Officer',
-      username: 'Michael',
-      department: DEPARTMENTS.FINANCE,
-      role: ROLES.PC,
-    },
-    {
-      email: 'exco@fnb.co.za',
-      password: 'password',
-      name: 'Executive Committee',
-      username: 'John Executive',
-      department: DEPARTMENTS.EXCOBERS,
-      role: ROLES.EXCO,
-    },
-    {
-      email: 'taxmanager@fnb.co.za',
-      password: 'password',
-      name: 'Tax Manager',
-      username: 'Frank Baidoo',
-      department: DEPARTMENTS.TAX,
-      role: ROLES.TAX_MANAGER,
-    },
-    {
-      email: 'costcontrol@fnb.co.za',
-      password: 'password',
-      name: 'Cost Control',
-      username: 'Christiana Duah',
-      department: DEPARTMENTS.COST_CONTROL,
-      role: ROLES.COST_CONTROL,
-    },
-    {
-      email: 'approval1@fnb.co.za',
-      password: 'password',
-      name: 'First Approval User',
-      username: 'Approval User 1',
-      department: DEPARTMENTS.FINANCE,
-      role: ROLES.APPROVAL_USER_1,
-    },
-    {
-      email: 'approval2@fnb.co.za',
-      password: 'password',
-      name: 'Second Approval User',
-      username: 'Approval User 2',
-      department: DEPARTMENTS.FINANCE,
-      role: ROLES.APPROVAL_USER_2,
-    },
-    {
-      email: 'samueltetteh@fnb.co.za',
-      password: '12345',
-      name: 'IT User',
-      username: 'Samuel Tetteh',
-      department: DEPARTMENTS.IT,
-      role: ROLES.DEPARTMENT_USER,
-    },
-    {
-      email: 'eshunkwesi@fnb.co.za',
-      password: '1234567',
-      name: 'IT User',
-      username: 'Eshun Kwesi',
-      department: DEPARTMENTS.IT,
-      role: ROLES.DEPARTMENT_USER,
-    },
-    {
-      email: 'franciskontoh@fnb.co.za',
-      password: '123456',
-      name: 'IT User',
-      username: 'admin',
-      department: DEPARTMENTS.IT,
-      role: ROLES.DEPARTMENT_USER,
-    },
-    {
-      email: 'operationsfnb@gmail.com',
-      password: 'password',
-      name: 'Operations',
-      username: 'Nii',
-      department: DEPARTMENTS.OPERATIONS,
-      role: ROLES.DEPARTMENT_USER,
-    },
-    {
-      email: 'operations1fnb@gmail.com',
-      password: 'password',
-      name: 'Operations',
-      username: 'Nii',
-      department: DEPARTMENTS.OPERATIONS,
-      role: ROLES.DEPARTMENT_USER,
-    },
-    {
-      email: 'legal@gmail.com',
-      password: 'password',
-      name: 'Legal',
-      username: 'Kontoh',
-      department: DEPARTMENTS.LEGAL,
-      role: ROLES.DEPARTMENT_USER,
-    },
-    {
-      email: 'compliance@gmail.com',
-      password: 'password',
-      name: 'COMPLIANCE',
-      username: 'Jeffery',
-      department: DEPARTMENTS.COMPLIANCE,
-      role: ROLES.DEPARTMENT_USER,
-    },
-    {
-      email: 'market@gmail.com',
-      password: 'password',
-      name: 'MARKETTING',
-      username: 'Dickson',
-      department: DEPARTMENTS.MARKETTING,
-      role: ROLES.DEPARTMENT_USER,
-  },
-   {
-  email: 'payment@fnb.co.za',
-  password: 'password',
-  name: 'Payment Officer',
-  username: 'Payment Officer',
-  department: DEPARTMENTS.FINANCE,
-  role: ROLES.PAYMENT_USER,
-}
-  ];
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState(null);
 
   useEffect(() => {
-    // Note: In a real environment, you would use localStorage here
-    // For demo purposes, we'll use a variable to simulate storage
-    const storedUser = null; // localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    checkAuthStatus();
   }, []);
 
-  const login = async (email, password) => {
-    const foundUser = MOCK_USERS.find(
-      (u) => u.email === email && u.password === password
-    );
-    
-    if (foundUser) {
-      const userInfo = {
-        name: foundUser.name,
-        email: foundUser.email,
-        username: foundUser.username,
-        department: foundUser.department,
-        role: foundUser.role,
-      };
-      setUser(userInfo);
-      // Note: In a real environment, you would use localStorage here
-      // localStorage.setItem('user', JSON.stringify(userInfo));
-      return true;
+  const checkAuthStatus = async () => {
+    try {
+      // Check for existing token in localStorage
+      const storedToken = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      
+      if (storedToken && storedUser) {
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+      // Clear potentially corrupted data
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    } finally {
+      setLoading(false);
     }
-    return false;
   };
 
-  const logout = () => {
-    setUser(null);
-    // Note: In a real environment, you would use localStorage here
-    // localStorage.removeItem('user');
-    // localStorage.removeItem('token');
-    // sessionStorage.removeItem('token');
+  const apiRequest = async (endpoint, options = {}) => {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options.headers,
+      },
+      ...options,
+    };
+
+    try {
+      const response = await fetch(url, config);
+      return response;
+    } catch (error) {
+      console.error('API request error:', error);
+      throw error;
+    }
+  };
+
+  const login = async (email, password) => {
+    try {
+      const response = await apiRequest('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Login failed');
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setUser(data.user);
+        setToken(data.token);
+        
+        // Store in localStorage
+        localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('token', data.token);
+        
+        return true;
+      } else {
+        throw new Error(data.message || 'Login failed');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      if (token) {
+        await apiRequest('/api/auth/logout', {
+          method: 'POST',
+        });
+      }
+    } catch (error) {
+      console.error('Logout API error:', error);
+    } finally {
+      setUser(null);
+      setToken(null);
+      // Clear localStorage
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+    }
+  };
+
+  const isAdmin = () => {
+    return user && (
+      user.role === ROLES.HEAD_OF_FINANCE ||
+      user.role === ROLES.CFO ||
+      user.role === ROLES.CEO ||
+      user.role === ROLES.PC ||
+      user.role === ROLES.EXCO
+    );
+  };
+
+  const hasRole = (requiredRoles) => {
+    if (!user) return false;
+    if (Array.isArray(requiredRoles)) {
+      return requiredRoles.includes(user.role);
+    }
+    return user.role === requiredRoles;
   };
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        flexDirection: 'column'
+      }}>
+        <div style={{ 
+          display: 'inline-block',
+          width: '50px',
+          height: '50px',
+          border: '3px solid rgba(0, 0, 0, 0.1)',
+          borderRadius: '50%',
+          borderTopColor: '#2196f3',
+          animation: 'spin 1s ease-in-out infinite'
+        }}></div>
+        <p style={{ marginTop: '10px' }}>Loading...</p>
+      </div>
+    );
   }
 
   return (
     <AuthContext.Provider 
       value={{
         user,
+        token,
         login,
         logout,
         loading,
+        apiRequest,
+        isAdmin,
+        hasRole,
         ROLES,
         DEPARTMENTS,
       }}

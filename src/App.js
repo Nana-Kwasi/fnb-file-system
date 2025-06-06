@@ -12,6 +12,7 @@ import DashboardCharts from './Dashboardchart/Dashboardchart';
 import FileStatusCircles from './File/FileStatus';
 import PurchaseForm from './PurchaseForm/PurchaseForm';
 import POScreen from './POScreen/POScreen';
+import UsersManagement from './Users/Users';
 
 
 
@@ -31,6 +32,8 @@ const App = () => {
             <Route path="/FileStatus" element={<FileStatusCircles />} />
             <Route path="/PurchaseForm" element={<PurchaseForm />} />
             <Route path="/POScreen" element={<POScreen />} />
+            <Route path="/Users" element={<UsersManagement />} />
+
 
 
 
