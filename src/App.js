@@ -13,7 +13,7 @@ import FileStatusCircles from './File/FileStatus';
 import PurchaseForm from './PurchaseForm/PurchaseForm';
 import POScreen from './POScreen/POScreen';
 import UsersManagement from './Users/Users';
-
+import Logs from './Logs/logs';
 
 
 
@@ -33,6 +33,8 @@ const App = () => {
             <Route path="/PurchaseForm" element={<PurchaseForm />} />
             <Route path="/POScreen" element={<POScreen />} />
             <Route path="/Users" element={<UsersManagement />} />
+            <Route path="/Logs" element={<Logs />} />
+
 
 
 

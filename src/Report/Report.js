@@ -24,66 +24,152 @@ const Reports = () => {
   const { invoices, poFiles, INVOICE_STATUS, PO_STATUS } = useInvoices();
   const { user } = useAuth();
 
+  // Helper function to extract username from invoice/PO data
+  const extractUsername = (item) => {
+    // Priority order for username extraction
+    if (item.sender && item.sender!== 'null' && item.sender.trim() !== '') {
+      return item.sender;
+    }
+    if (item.username && item.username !== 'null' && item.username.trim() !== '') {
+      return item.username;
+    }
+    if (item.uploaded_by && item.uploaded_by !== 'null' && item.uploaded_by.trim() !== '') {
+      return item.uploaded_by;
+    }
+    if (item.original_uploader && item.original_uploader !== 'null' && item.original_uploader.trim() !== '') {
+      return item.original_uploader;
+    }
+    if (item.uploader_id && item.uploader_id !== 'null' && item.uploader_id.trim() !== '') {
+      return item.uploader_id;
+    }
+    return 'Unknown User';
+  };
+
+  // Helper functions to transform API data to expected format
+  const transformInvoiceData = (invoice) => {
+    return {
+      ...invoice,
+      name: invoice.name || invoice.file_name || 'Unknown File',
+      // Extract date from created_at (format: "2025-06-06T08:18:05Z" -> "2025-06-06")
+      date: invoice.created_at ? invoice.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+      // Extract time from created_at
+      time: invoice.created_at ? 
+        new Date(invoice.created_at).toLocaleTimeString() : 
+        new Date().toLocaleTimeString(),
+      // Use the new username extraction function
+      sender: extractUsername(invoice),
+      type: invoice.type || 'PDF'
+    };
+  };
+
+  const transformPOData = (po) => {
+    return {
+      ...po,
+      name: po.name || po.file_name || 'Unknown File',
+      // Extract date from created_at
+      date: po.created_at ? po.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+      // Extract time from created_at
+      time: po.created_at ? 
+        new Date(po.created_at).toLocaleTimeString() : 
+        new Date().toLocaleTimeString(),
+      // Use the new username extraction function
+      sender: extractUsername(po),
+      type: po.type || 'PDF'
+    };
+  };
+
   const generateReport = () => {
     if (!startDate || !endDate) {
       alert('Please select both start and end dates');
       return;
     }
+    
+    // Debug logging
+    console.log('Generating report with:', { startDate, endDate });
+    console.log('Invoices available:', invoices?.length || 0);
+    console.log('PO files available:', poFiles?.length || 0);
+    
+    // Debug log to check username extraction
+    if (invoices && invoices.length > 0) {
+      console.log('Sample invoice data:', invoices[0]);
+      console.log('Extracted username:', extractUsername(invoices[0]));
+    }
+    
     setShowReport(true);
   };
+
   const getFilteredInvoices = () => {
-    return invoices.filter(invoice => {
+    if (!invoices || !Array.isArray(invoices)) return [];
+    
+    return invoices.map(transformInvoiceData).filter(invoice => {
       const invoiceDate = new Date(invoice.date);
-      return invoiceDate >= new Date(startDate) && invoiceDate <= new Date(endDate);
+      const startDateObj = new Date(startDate);
+      const endDateObj = new Date(endDate);
+      
+      return invoiceDate >= startDateObj && invoiceDate <= endDateObj;
     });
   };
 
   const getFilteredPOs = () => {
-    return poFiles.filter(po => {
+    if (!poFiles || !Array.isArray(poFiles)) return [];
+    
+    return poFiles.map(transformPOData).filter(po => {
       const poDate = new Date(po.date);
-      return poDate >= new Date(startDate) && poDate <= new Date(endDate);
+      const startDateObj = new Date(startDate);
+      const endDateObj = new Date(endDate);
+      
+      return poDate >= startDateObj && poDate <= endDateObj;
     });
   };
 
-   const getFinanceApprovedInvoices = () => {
+  const getFinanceApprovedInvoices = () => {
     const filteredInvoices = getFilteredInvoices();
-    const role = user.role;
+    const role = user?.role;
     
-    // Map roles to the corresponding status they approve to
-    const roleApprovedStatusMap = {
-      'FINANCE_REVIEWER_1': INVOICE_STATUS.REVIEW_1,
-      'FINANCE_REVIEWER_2': INVOICE_STATUS.REVIEW_2,
-      'FINANCE_REVIEWER_3': INVOICE_STATUS.REVIEW_3,
-      'FINANCE_REVIEWER_4': INVOICE_STATUS.PAID
-    };
-  
-    const approvedStatus = roleApprovedStatusMap[role];
-    
-    if (!approvedStatus) {
-      return [];
+    // For finance users, show invoices they have authority over based on their role
+    if (!role || user?.department !== 'FINANCE') {
+      return filteredInvoices;
     }
-  
-    // Return invoices that match either:
-    // 1. The exact status this reviewer approves to
-    // 2. Any status after this reviewer's approval stage
-    return filteredInvoices.filter(invoice => {
-      const statusValues = Object.values(INVOICE_STATUS);
-      const approvedStatusIndex = statusValues.indexOf(approvedStatus);
-      const currentStatusIndex = statusValues.indexOf(invoice.status);
-      
-      return currentStatusIndex >= approvedStatusIndex;
-    });
+
+    // Finance users should see invoices that are in progress or completed
+    // This depends on your business logic - adjust the statuses as needed
+    const financeRelevantStatuses = [
+      INVOICE_STATUS.TAX_APPROVAL,
+      INVOICE_STATUS.COST_CONTROL_CAPTURE,
+      INVOICE_STATUS.FIRST_APPROVAL,
+      INVOICE_STATUS.SECOND_APPROVAL,
+      INVOICE_STATUS.PAYMENT,
+      INVOICE_STATUS.PAID
+    ];
+
+    return filteredInvoices.filter(invoice => 
+      financeRelevantStatuses.includes(invoice.status)
+    );
   };
 
   const getFinanceApprovedPOs = () => {
     const filteredPOs = getFilteredPOs();
-    return filteredPOs.filter(po => po.status === PO_STATUS.APPROVED);
+    
+    if (user?.department !== 'FINANCE') {
+      return filteredPOs;
+    }
+
+    // For finance users, show POs that are in their review stages or beyond
+    const financeRelevantStatuses = [
+      PO_STATUS.COST_CONTROL_REVIEW,
+      PO_STATUS.HEAD_OF_FINANCE_REVIEW,
+      PO_STATUS.SIGNED
+    ];
+
+    return filteredPOs.filter(po => 
+      financeRelevantStatuses.includes(po.status)
+    );
   };
 
   const getChartData = () => {
-    const filteredInvoices = user.department === 'FINANCE' ? 
+    const filteredInvoices = user?.department === 'FINANCE' ? 
       getFinanceApprovedInvoices() : getFilteredInvoices();
-    const filteredPOs = user.department === 'FINANCE' ? 
+    const filteredPOs = user?.department === 'FINANCE' ? 
       getFinanceApprovedPOs() : getFilteredPOs();
     
     const dailyData = {};
@@ -105,57 +191,37 @@ const Reports = () => {
     return Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date));
   };
 
-  const getStageNumber = (status) => {
-    switch (status) {
-      case INVOICE_STATUS.PENDING: return '0/5';
-      case INVOICE_STATUS.REVIEW_1: return '1/5';
-      case INVOICE_STATUS.REVIEW_2: return '2/5';
-      case INVOICE_STATUS.REVIEW_3: return '3/5';
-      case INVOICE_STATUS.REVIEW_4: return '4/5';
-      case INVOICE_STATUS.REVIEW_5: return '5/5';
-      case INVOICE_STATUS.PAID: return 'Completed';
-      default: return '0/5';
-    }
-  };
-
-  const getNextReviewer = (status) => {
-    const MOCK_USERS = [
-      { role: 'FINANCE_REVIEWER_1', username: 'Quachi' },
-      { role: 'FINANCE_REVIEWER_2', username: 'Vanessa' },
-      { role: 'FINANCE_REVIEWER_3', username: 'Alex' },
-      { role: 'FINANCE_REVIEWER_4', username: 'BAffour' },
-      { role: 'FINANCE_REVIEWER_5', username: 'Patrick' }
-    ];
-
-    switch (status) {
-      case INVOICE_STATUS.PENDING:
-        return MOCK_USERS.find(u => u.role === 'FINANCE_REVIEWER_1')?.username;
-      case INVOICE_STATUS.REVIEW_1:
-        return MOCK_USERS.find(u => u.role === 'FINANCE_REVIEWER_2')?.username;
-      case INVOICE_STATUS.REVIEW_2:
-        return MOCK_USERS.find(u => u.role === 'FINANCE_REVIEWER_3')?.username;
-      case INVOICE_STATUS.REVIEW_3:
-        return MOCK_USERS.find(u => u.role === 'FINANCE_REVIEWER_4')?.username;
-      case INVOICE_STATUS.REVIEW_4:
-        return MOCK_USERS.find(u => u.role === 'FINANCE_REVIEWER_5')?.username;
-      default:
-        return 'Complete';
-    }
+  const getStatusDisplayName = (status) => {
+    const statusDisplayNames = {
+      // Invoice statuses
+      [INVOICE_STATUS.PENDING]: 'Pending',
+      [INVOICE_STATUS.INITIAL_APPROVAL]: 'Initial Approval',
+      [INVOICE_STATUS.TAX_APPROVAL]: 'Tax Approval',
+      [INVOICE_STATUS.COST_CONTROL_CAPTURE]: 'Cost Control',
+      [INVOICE_STATUS.FIRST_APPROVAL]: 'First Approval',
+      [INVOICE_STATUS.SECOND_APPROVAL]: 'Second Approval',
+      [INVOICE_STATUS.PAYMENT]: 'Payment Processing',
+      [INVOICE_STATUS.PAID]: 'Paid',
+      [INVOICE_STATUS.REJECTED]: 'Rejected',
+      
+      // PO statuses
+      [PO_STATUS.PENDING]: 'Pending',
+      [PO_STATUS.COST_CONTROL_REVIEW]: 'Cost Control Review',
+      [PO_STATUS.HEAD_OF_FINANCE_REVIEW]: 'Finance Review',
+      [PO_STATUS.SIGNED]: 'Signed'
+    };
+    
+    return statusDisplayNames[status] || status;
   };
 
   const formatStatus = (status, type) => {
-    if (type === 'invoice') {
-      const stageNumber = getStageNumber(status);
-      const nextReviewer = getNextReviewer(status);
-      return `${stageNumber} (${nextReviewer})`;
-    }
-    return status;
+    return getStatusDisplayName(status);
   };
 
   const exportToPDF = () => {
     const doc = new jsPDF('landscape', 'mm', 'a4');
-    const filteredInvoices = user.department === 'FINANCE' ? getFinanceApprovedInvoices() : getFilteredInvoices();
-    const filteredPOs = user.department === 'FINANCE' ? getFinanceApprovedPOs() : getFilteredPOs();
+    const filteredInvoices = user?.department === 'FINANCE' ? getFinanceApprovedInvoices() : getFilteredInvoices();
+    const filteredPOs = user?.department === 'FINANCE' ? getFinanceApprovedPOs() : getFilteredPOs();
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
     const margin = 15;
@@ -197,11 +263,11 @@ const Reports = () => {
     };
 
     const addTable = (startY, data, title) => {
-      const tableHeaders = user.department === 'FINANCE' 
+      const tableHeaders = user?.department === 'FINANCE' 
         ? [['Date', 'Time', 'Files Approved', 'Sender']]
-        : [['File Name', 'Type', 'Date', 'Time', 'Status', 'Uploaded By']];
+        : [['File Name', 'Type', 'Date', 'Time', 'Status', 'Sender']];
 
-      const tableData = user.department === 'FINANCE'
+      const tableData = user?.department === 'FINANCE'
         ? data.map(file => [
             file.date,
             file.time,
@@ -214,7 +280,7 @@ const Reports = () => {
             file.date,
             file.time,
             formatStatus(file.status, title.toLowerCase().includes('invoice') ? 'invoice' : 'po'),
-            file.uploadedBy === user.email ? 'Me' : file.uploadedBy
+            file.sender === user?.username || file.sender === user?.email ? 'Me' : file.sender
           ]);
 
       doc.setFont('helvetica', 'bold');
@@ -245,11 +311,11 @@ const Reports = () => {
   };
 
   const exportToExcel = () => {
-    const filteredInvoices = user.department === 'FINANCE' ? getFinanceApprovedInvoices() : getFilteredInvoices();
-    const filteredPOs = user.department === 'FINANCE' ? getFinanceApprovedPOs() : getFilteredPOs();
+    const filteredInvoices = user?.department === 'FINANCE' ? getFinanceApprovedInvoices() : getFilteredInvoices();
+    const filteredPOs = user?.department === 'FINANCE' ? getFinanceApprovedPOs() : getFilteredPOs();
 
     const invoiceWorksheet = XLSX.utils.json_to_sheet(
-      user.department === 'FINANCE'
+      user?.department === 'FINANCE'
         ? filteredInvoices.map(file => ({
             'Date': file.date,
             'Time': file.time,
@@ -262,12 +328,12 @@ const Reports = () => {
             'Date': file.date,
             'Time': file.time,
             'Status': formatStatus(file.status, 'invoice'),
-            'Uploaded By': file.uploadedBy === user.email ? 'Me' : file.uploadedBy
+            'Sender': file.sender === user?.username || file.sender === user?.email ? 'Me' : file.sender
           }))
     );
 
     const poWorksheet = XLSX.utils.json_to_sheet(
-      user.department === 'FINANCE'
+      user?.department === 'FINANCE'
         ? filteredPOs.map(file => ({
             'Date': file.date,
             'Time': file.time,
@@ -280,7 +346,7 @@ const Reports = () => {
             'Date': file.date,
             'Time': file.time,
             'Status': formatStatus(file.status, 'po'),
-            'Uploaded By': file.uploadedBy === user.email ? 'Me' : file.uploadedBy
+            'Sender': file.sender === user?.username || file.sender === user?.email ? 'Me' : file.sender
           }))
     );
     
@@ -419,11 +485,11 @@ const Reports = () => {
             </div>
 
             <div className="table-container">
-              <h3 className="text-lg font-semibold mb-3">Invoices</h3>
+              <h3 className="text-lg font-semibold mb-3">Invoices ({(user?.department === 'FINANCE' ? getFinanceApprovedInvoices() : getFilteredInvoices()).length})</h3>
               <table className="reports-table">
                 <thead>
                   <tr>
-                    {user.department === 'FINANCE' ? (
+                    {user?.department === 'FINANCE' ? (
                       <>
                         <th>Date</th>
                         <th>Time</th>
@@ -437,15 +503,15 @@ const Reports = () => {
                         <th>Date</th>
                         <th>Time</th>
                         <th>Status</th>
-                        <th>Uploaded By</th>
+                        <th>Sender</th>
                       </>
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  {(user.department === 'FINANCE' ? getFinanceApprovedInvoices() : getFilteredInvoices()).map((file, index) => (
-                    <tr key={index}>
-                      {user.department === 'FINANCE' ? (
+                  {(user?.department === 'FINANCE' ? getFinanceApprovedInvoices() : getFilteredInvoices()).map((file, index) => (
+                    <tr key={file.id || index}>
+                      {user?.department === 'FINANCE' ? (
                         <>
                           <td>{file.date}</td>
                           <td>{file.time}</td>
@@ -459,12 +525,12 @@ const Reports = () => {
                           <td>{file.date}</td>
                           <td>{file.time}</td>
                           <td>
-                            <span className={`status-badge ${file.status.toLowerCase()}`}>
+                            <span className={`status-badge ${file.status?.toLowerCase()}`}>
                               {formatStatus(file.status, 'invoice')}
                             </span>
                           </td>
                           <td>
-                            {file.uploadedBy === user.email ? 'Me' : file.uploadedBy}
+                            {file.sender === user?.username || file.sender === user?.email ? 'Me' : file.sender}
                           </td>
                         </>
                       )}
@@ -472,14 +538,19 @@ const Reports = () => {
                   ))}
                 </tbody>
               </table>
+              {(user?.department === 'FINANCE' ? getFinanceApprovedInvoices() : getFilteredInvoices()).length === 0 && (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                  No invoices found for the selected date range.
+                </div>
+              )}
             </div>
 
             <div className="table-container mt-8">
-              <h3 className="text-lg font-semibold mb-3">Purchase Orders</h3>
+              <h3 className="text-lg font-semibold mb-3">Purchase Orders ({(user?.department === 'FINANCE' ? getFinanceApprovedPOs() : getFilteredPOs()).length})</h3>
               <table className="reports-table">
                 <thead>
                   <tr>
-                    {user.department === 'FINANCE' ? (
+                    {user?.department === 'FINANCE' ? (
                       <>
                         <th>Date</th>
                         <th>Time</th>
@@ -493,15 +564,15 @@ const Reports = () => {
                         <th>Date</th>
                         <th>Time</th>
                         <th>Status</th>
-                        <th>Uploaded By</th>
+                        <th>Sender</th>
                       </>
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  {(user.department === 'FINANCE' ? getFinanceApprovedPOs() : getFilteredPOs()).map((file, index) => (
-                    <tr key={index}>
-                      {user.department === 'FINANCE' ? (
+                  {(user?.department === 'FINANCE' ? getFinanceApprovedPOs() : getFilteredPOs()).map((file, index) => (
+                    <tr key={file.id || index}>
+                      {user?.department === 'FINANCE' ? (
                         <>
                           <td>{file.date}</td>
                           <td>{file.time}</td>
@@ -515,12 +586,12 @@ const Reports = () => {
                           <td>{file.date}</td>
                           <td>{file.time}</td>
                           <td>
-                            <span className={`status-badge ${file.status.toLowerCase()}`}>
+                            <span className={`status-badge ${file.status?.toLowerCase()}`}>
                               {formatStatus(file.status, 'po')}
                             </span>
                           </td>
                           <td>
-                            {file.uploadedBy === user.email ? 'Me' : file.uploadedBy}
+                            {file.sender === user?.username || file.sender === user?.email ? 'Me' : file.sender}
                           </td>
                         </>
                       )}
@@ -528,6 +599,11 @@ const Reports = () => {
                   ))}
                 </tbody>
               </table>
+              {(user?.department === 'FINANCE' ? getFinanceApprovedPOs() : getFilteredPOs()).length === 0 && (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                  No purchase orders found for the selected date range.
+                </div>
+              )}
             </div>
           </div>
         </>

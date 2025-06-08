@@ -220,6 +220,7 @@ import "../filedashboard.css";
 import FileStatusCircles from '../File/FileStatus';
 import FileViewer from '../Fileviewer/Fileviewer';
 import UsersManagement from '../Users/Users';
+import Logs from '../Logs/logs';
 
 const Dashboard = () => {
   const [currentScreen, setCurrentScreen] = useState('dashboard');
@@ -243,8 +244,7 @@ const Dashboard = () => {
     refreshData 
   } = useInvoices();
 
-  const isAdmin = user?.username === 'Admin' || user?.email === 'Admin';
-
+const isAdmin = user?.username === 'Admin' || user?.username === 'admin' || user?.email === 'Admin';
   
 
   // Auto-refresh data every 30 seconds
@@ -741,6 +741,7 @@ const Dashboard = () => {
               <tr>
                 <th>File</th>
                 <th>Amount</th>
+                 <th>Uploader</th>
                 <th>Date</th>
                 <th>Time</th>
                 <th>Status</th>
@@ -753,6 +754,8 @@ const Dashboard = () => {
                 <tr key={file.id}>
                   <td>{file.name || file.original_filename}</td>
                   <td>{formatAmount(file.amount)}</td>
+                  <td>{file.sender}</td>
+
                   <td>{formatDate(file.created_at || file.date)}</td>
                   <td>{formatTime(file.created_at || file.time)}</td>
                   <td>
@@ -970,9 +973,15 @@ const Dashboard = () => {
       visible: true
     },
     {
-      id: 'UsersManagement',
+      id: 'Administrative',
       icon: <UsersIcon size={20} />,
-      label: 'UsersManagement',
+      label: 'Administrative',
+      visible: isAdmin
+    },
+     {
+      id: 'Logs',
+      icon: <UsersIcon size={20} />,
+      label: 'Logs',
       visible: isAdmin
     },
     {
@@ -999,8 +1008,10 @@ const Dashboard = () => {
         return <Reports />;
       case 'POScreen':
         return <POScreen />;
-      case 'UsersManagement':
+      case 'Administrative':
         return <UsersManagement />;
+         case 'Logs':
+        return <Logs />;
       case 'fileview':
         return <FileViewer 
           file={viewingFile} 
@@ -1018,7 +1029,18 @@ const Dashboard = () => {
     <div className="dashboard-container">
       <div className="dashboard-wrapper">
         <div className="sidebar">
-          <div className="logo">
+          <div className="logo-image">
+            <img 
+              src="/FNB logo.png" 
+              alt="FNB Logo" 
+              className="logo-image"
+              style={{
+                width: '150px',
+                height: '150px',
+                marginRight: '12px',
+                objectFit: 'contain'
+              }}
+            />
             <h1 style={{color:'#FFB020'}}>FNB FILE SYSTEM</h1>
           </div>
 
