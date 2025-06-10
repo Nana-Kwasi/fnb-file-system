@@ -67,6 +67,201 @@ form .error-message {
     animation: spin 1s linear infinite;
     display: inline-block;
 }
+/* Additional styles for LDAP/2FA login - Add these to your existing login.css */
+
+/* Input group styling */
+.input-group {
+  position: relative;
+  margin-bottom: 15px;
+}
+
+.input-hint {
+  display: block;
+  margin-top: 5px;
+  color: #4CAF50;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* F-number input styling */
+.fnumber-input {
+  border-left: 4px solid #4CAF50 !important;
+  background-color: #f9fff9 !important;
+}
+
+.email-input {
+  border-left: 4px solid #2196F3 !important;
+  background-color: #f9f9ff !important;
+}
+
+/* 2FA Section */
+.two-fa-section {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.two-fa-section h3 {
+  color: #333;
+  margin-bottom: 10px;
+  font-size: 24px;
+}
+
+.two-fa-section p {
+  color: #666;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+/* 2FA Input */
+.two-fa-input {
+  width: 100%;
+  padding: 15px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  letter-spacing: 8px;
+  margin-bottom: 20px;
+  transition: border-color 0.3s ease;
+}
+
+.two-fa-input:focus {
+  border-color: #4CAF50;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+}
+
+.two-fa-input:valid {
+  border-color: #4CAF50;
+  background-color: #f9fff9;
+}
+
+/* 2FA Buttons */
+.two-fa-buttons {
+  display: flex;
+  gap: 10px;
+  flex-direction: column;
+}
+
+.back-button {
+  background-color: #f5f5f5;
+  color: #666;
+  border: 2px solid #ddd;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.back-button:hover:not(:disabled) {
+  background-color: #e9e9e9;
+  border-color: #bbb;
+}
+
+.back-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Login Help Section */
+.login-help {
+  margin-top: 30px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.auth-options {
+  margin-bottom: 20px;
+}
+
+.auth-options h4 {
+  color: #333;
+  margin-bottom: 10px;
+  font-size: 16px;
+}
+
+.auth-options ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.auth-options li {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background-color: white;
+  border-radius: 4px;
+  border-left: 4px solid #2196F3;
+  font-size: 14px;
+}
+
+.auth-options li:last-child {
+  border-left-color: #4CAF50;
+}
+
+.dev-credentials {
+  padding: 15px;
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #856404;
+}
+
+.dev-credentials strong {
+  color: #533f03;
+}
+
+/* Responsive design */
+@media (max-width: 480px) {
+  .two-fa-buttons {
+    flex-direction: column;
+  }
+  
+  .login-help {
+    margin-top: 20px;
+    padding: 15px;
+  }
+  
+  .auth-options li {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+}
+
+/* Loading spinner enhancement */
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Enhanced button states */
+.login-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.login-button:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
 
 @keyframes spin {
     0% {

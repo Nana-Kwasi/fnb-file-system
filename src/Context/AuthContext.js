@@ -203,8 +203,6 @@
 // };
 
 
-
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export const ROLES = {
@@ -244,6 +242,10 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
   const [sessionId, setSessionId] = useState(null);
+  
+  // LDAP/2FA specific state
+  const [twoFASessionId, setTwoFASessionId] = useState(null);
+  const [pendingLdapAuth, setPendingLdapAuth] = useState(null);
 
   useEffect(() => {
     checkAuthStatus();
@@ -264,12 +266,21 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Auth check error:', error);
       // Clear potentially corrupted data
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('sessionId');
+      clearAuthData();
     } finally {
       setLoading(false);
     }
+  };
+
+  const clearAuthData = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('sessionId');
+    setUser(null);
+    setToken(null);
+    setSessionId(null);
+    setTwoFASessionId(null);
+    setPendingLdapAuth(null);
   };
 
   const apiRequest = async (endpoint, options = {}) => {
@@ -293,11 +304,27 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, password) => {
+  // Helper function to detect f-number format
+  const isFnumber = (identifier) => {
+    return /^f\d{7}$/i.test(identifier);
+  };
+
+  // ===== AUTHENTICATION METHODS =====
+
+  /**
+   * Universal login method - handles both email/password and f-number/password
+   * @param {string} identifier - Email or f-number
+   * @param {string} password - Password
+   * @returns {Promise<Object>} Login result
+   */
+  const login = async (identifier, password) => {
     try {
       const response = await apiRequest('/api/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ 
+          email: identifier, // Controller handles both email and f-number
+          password 
+        }),
       });
 
       if (!response.ok) {
@@ -308,6 +335,108 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
 
       if (data.success) {
+        // Check if this is LDAP flow requiring 2FA
+        if (data.requires2FA) {
+          setTwoFASessionId(data.twoFASessionId);
+          setPendingLdapAuth({
+            fnumber: identifier,
+            sessionId: data.twoFASessionId
+          });
+          
+          return {
+            success: true,
+            requires2FA: true,
+            twoFASessionId: data.twoFASessionId,
+            message: data.message || '2FA verification required'
+          };
+        } else {
+          // Traditional login success
+          setUser(data.user);
+          setToken(data.token);
+          setSessionId(data.sessionId);
+          
+          // Store in localStorage
+          localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('sessionId', data.sessionId);
+          
+          return { success: true, user: data.user };
+        }
+      } else {
+        throw new Error(data.message || 'Login failed');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  };
+
+  /**
+   * LDAP Authentication - First step for f-number login
+   * @param {string} fnumber - F-number (e.g., f8877557)
+   * @param {string} password - LDAP password
+   * @returns {Promise<Object>} LDAP auth result
+   */
+  const authenticateLdap = async (fnumber, password) => {
+    try {
+      const response = await apiRequest('/api/auth/ldap/authenticate', {
+        method: 'POST',
+        body: JSON.stringify({ fnumber, password }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'LDAP authentication failed');
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setTwoFASessionId(data.twoFASessionId);
+        setPendingLdapAuth({
+          fnumber,
+          sessionId: data.twoFASessionId
+        });
+      }
+
+      return data;
+    } catch (error) {
+      console.error('LDAP auth error:', error);
+      throw error;
+    }
+  };
+
+  /**
+   * Verify 2FA code - Second step for LDAP login
+   * @param {string} code - 2FA verification code
+   * @param {string} sessionId - 2FA session ID (optional, uses stored if not provided)
+   * @returns {Promise<Object>} 2FA verification result
+   */
+  const verify2FA = async (code, sessionId = null) => {
+    try {
+      const activeSessionId = sessionId || twoFASessionId;
+      
+      if (!activeSessionId) {
+        throw new Error('No active 2FA session found');
+      }
+
+      const response = await apiRequest('/api/auth/verify-2fa', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          code, 
+          twoFASessionId: activeSessionId 
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || '2FA verification failed');
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Complete login process
         setUser(data.user);
         setToken(data.token);
         setSessionId(data.sessionId);
@@ -317,12 +446,76 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('token', data.token);
         localStorage.setItem('sessionId', data.sessionId);
         
-        return true;
-      } else {
-        throw new Error(data.message || 'Login failed');
+        // Clear 2FA state
+        setTwoFASessionId(null);
+        setPendingLdapAuth(null);
       }
+
+      return data;
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('2FA verification error:', error);
+      throw error;
+    }
+  };
+
+  /**
+   * Track 2FA verification status
+   * @param {string} sessionId - 2FA session ID (optional, uses stored if not provided)
+   * @returns {Promise<Object>} 2FA status
+   */
+  const track2FAStatus = async (sessionId = null) => {
+    try {
+      const activeSessionId = sessionId || twoFASessionId;
+      
+      if (!activeSessionId) {
+        throw new Error('No active 2FA session found');
+      }
+
+      const response = await apiRequest('/api/auth/track-2fa-status', {
+        method: 'POST',
+        body: JSON.stringify({ twoFASessionId: activeSessionId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to track 2FA status');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Track 2FA status error:', error);
+      throw error;
+    }
+  };
+
+  /**
+   * Verify F-number exists in LDAP (Admin only)
+   * @param {string} fnumber - F-number to verify
+   * @returns {Promise<Object>} Verification result
+   */
+
+  
+  const verifyFnumber = async (fnumber) => {
+    try {
+      if (!isAdmin(user)) {
+        throw new Error('Access denied - Admin privileges required');
+      }
+
+      const response = await apiRequest('/api/auth/ldap/verify-fnumber', {
+        method: 'POST',
+        body: JSON.stringify({ fnumber }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'F-number verification failed');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('F-number verification error:', error);
       throw error;
     }
   };
@@ -338,13 +531,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout API error:', error);
     } finally {
-      setUser(null);
-      setToken(null);
-      setSessionId(null);
-      // Clear localStorage
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      localStorage.removeItem('sessionId');
+      clearAuthData();
     }
   };
 
@@ -589,6 +776,7 @@ export const AuthProvider = ({ children }) => {
    * @param {string} userData.password - User's password
    * @param {string} userData.department - User's department
    * @param {string} userData.role - User's role
+   * @param {string} userData.fnumber - User's f-number (optional for LDAP users)
    * @returns {Promise<Object>} Created user data
    */
   const createUser = async (userData) => {
@@ -735,12 +923,23 @@ export const AuthProvider = ({ children }) => {
         sessionId,
         loading,
         
+        // LDAP/2FA state
+        twoFASessionId,
+        pendingLdapAuth,
+        
         // Auth methods
         login,
         logout,
         isAdmin,
         hasRole,
         apiRequest,
+        isFnumber,
+        
+        // LDAP/2FA methods
+        authenticateLdap,
+        verify2FA,
+        track2FAStatus,
+        verifyFnumber,
         
         // Login Logs methods
         getLoginLogs,
