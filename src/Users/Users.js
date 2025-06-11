@@ -1205,7 +1205,9 @@ const UsersManagement = () => {
     }
   }, [pagination.page, pagination.limit, searchTerm, apiCall]);
 
+  // Fixed createUser function
   const createUser = async (userData) => {
+    console.log('Creating user with data:', userData);
     try {
       const data = await apiCall('/api/auth/users', {
         method: 'POST',
@@ -1213,11 +1215,13 @@ const UsersManagement = () => {
       });
 
       if (data.success) {
+        console.log(`User created successfully: ${data.user?.email || userData.email}`);
         return data;
       } else {
         throw new Error(data.message || 'Failed to create user');
       }
     } catch (error) {
+      console.error(`Create user error: ${error.message}`);
       throw error;
     }
   };
@@ -1338,6 +1342,7 @@ const UsersManagement = () => {
   const handleSubmit = async () => {
     setIsLoading(true);
     setError(null);
+    setFnumberVerifying(false);
 
     try {
       // Validation
@@ -1352,45 +1357,61 @@ const UsersManagement = () => {
 
       if (mode === 'add') {
         let userData;
+        let ldapUserData = null;
         
         if (isFnumber) {
           // For F-number users, verify first before creating
           setFnumberVerifying(true);
+          console.log('Verifying F-number:', formData.email.trim());
           
           try {
             const verificationResult = await verifyFnumber(formData.email.trim());
+            console.log('Verification result:', verificationResult);
             
-            if (!verificationResult.success) {
+            // Check if the verification was successful
+            if (!verificationResult.success && verificationResult.statusCode !== 0) {
               throw new Error(verificationResult.message || 'F-number verification failed');
             }
             
-            // If verification successful, prepare user data without password
-            userData = {
-              name: formData.name,
-              email: formData.email,
-              username: formData.username,
-              department: formData.department,
-              role: formData.role,
-              isFnumberUser: true
-            };
-            
-            // Auto-populate fields if available from verification
-            if (verificationResult.user) {
-              userData.name = verificationResult.user.displayName || userData.name;
-              userData.username = verificationResult.user.samAccountName || userData.username;
+            // Extract user data from LDAP response
+            if (verificationResult.data) {
+              ldapUserData = verificationResult.data;
             }
             
+            // Prepare user data for F-number users
+            userData = {
+              name: formData.name || ldapUserData?.name || '',
+              email: ldapUserData?.email || formData.email, // Use LDAP email if available
+              username: formData.username || ldapUserData?.userId || '',
+              department: formData.department,
+              role: formData.role,
+              isFnumberUser: true,
+              fnumber: formData.email.trim(),
+              ldapData: ldapUserData // Include LDAP data for backend processing
+            };
+            
+            console.log('F-number user data prepared:', userData);
+            
           } catch (verifyError) {
+            console.error('F-number verification error:', verifyError);
             throw new Error(`F-number verification failed: ${verifyError.message}`);
           } finally {
             setFnumberVerifying(false);
           }
         } else {
           // Regular user with password
-          userData = formData;
+          userData = {
+            ...formData,
+            isFnumberUser: false
+          };
         }
         
-        await createUser(userData);
+        console.log('Creating user with final data:', userData);
+        
+        // Create the user
+        const createResult = await createUser(userData);
+        console.log('User creation result:', createResult);
+        
       } else {
         // Edit mode
         const updateData = {
@@ -1403,11 +1424,14 @@ const UsersManagement = () => {
         await updateUser(currentUser.id, updateData);
       }
 
+      // Success - close modal and refresh
       setModalOpen(false);
       resetForm();
       setCurrentUser(null);
-      fetchUsers();
+      await fetchUsers();
+      
     } catch (err) {
+      console.error('Submit error:', err);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -1862,10 +1886,8 @@ const UsersManagement = () => {
   </div>
 );
 }
+
 export default UsersManagement;
-
-
-
 
 
 
