@@ -1001,8 +1001,6 @@
 
 
 
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, 
@@ -1017,7 +1015,6 @@ import {
   Info,
   AlertCircle
 } from 'lucide-react';
-import "../user.css"
 
 const UsersManagement = () => {
   // State management
@@ -1105,7 +1102,7 @@ const UsersManagement = () => {
     return false;
   };
 
-  // F-number verification function
+  // F-number verification function - Fixed to match working code pattern
   const verifyFnumber = async (fnumber) => {
     try {
       const token = getAuthToken();
@@ -1122,10 +1119,11 @@ const UsersManagement = () => {
   
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'F-number verification failed');
+        throw new Error(errorData.message || errorData.error || 'F-number verification failed');
       }
   
       const data = await response.json();
+      console.log('F-number verification response:', data);
       return data;
     } catch (error) {
       console.error('F-number verification error:', error);
@@ -1339,6 +1337,7 @@ const UsersManagement = () => {
     setError(null);
   };
 
+  // Fixed handleSubmit function - main fix is here
   const handleSubmit = async () => {
     setIsLoading(true);
     setError(null);
@@ -1368,9 +1367,15 @@ const UsersManagement = () => {
             const verificationResult = await verifyFnumber(formData.email.trim());
             console.log('Verification result:', verificationResult);
             
-            // Check if the verification was successful
-            if (!verificationResult.success && verificationResult.statusCode !== 0) {
-              throw new Error(verificationResult.message || 'F-number verification failed');
+            // FIXED: Check verification success more carefully - similar to working code
+            // The working code checks verifyData.isValid, so let's check for success indicators
+            if (verificationResult.error || (!verificationResult.success && !verificationResult.isValid)) {
+              throw new Error(verificationResult.error || verificationResult.message || 'F-number verification failed');
+            }
+
+            // If we have isValid field (like the working code), check it
+            if (verificationResult.hasOwnProperty('isValid') && !verificationResult.isValid) {
+              throw new Error('User not found in required group');
             }
             
             // Extract user data from LDAP response
@@ -1408,7 +1413,7 @@ const UsersManagement = () => {
         
         console.log('Creating user with final data:', userData);
         
-        // Create the user
+        // Create the user - this should now be called after successful verification
         const createResult = await createUser(userData);
         console.log('User creation result:', createResult);
         
