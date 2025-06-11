@@ -1003,7 +1003,6 @@
 
 
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, 
@@ -1018,6 +1017,7 @@ import {
   Info,
   AlertCircle
 } from 'lucide-react';
+import "../user.css"
 
 const UsersManagement = () => {
   // State management
@@ -1031,13 +1031,9 @@ const UsersManagement = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   
-  // F-number verification states
+  // F-number verification states - simplified
   const [isFnumber, setIsFnumber] = useState(false);
   const [fnumberVerifying, setFnumberVerifying] = useState(false);
-  const [fnumberVerified, setFnumberVerified] = useState(false);
-  const [fnumberError, setFnumberError] = useState(null);
-  const [isFnumberUser, setIsFnumberUser] = useState(false);
-  const [fnumberVerificationStatus, setFnumberVerificationStatus] = useState(null);
   
   // Pagination state
   const [pagination, setPagination] = useState({
@@ -1151,11 +1147,7 @@ const UsersManagement = () => {
       role: ''
     });
     setIsFnumber(false);
-    setFnumberVerified(false);
-    setFnumberError(null);
     setFnumberVerifying(false);
-    setIsFnumberUser(false);
-    setFnumberVerificationStatus(null);
   };
 
   // API functions
@@ -1293,97 +1285,21 @@ const UsersManagement = () => {
     setPagination(prev => ({ ...prev, page: newPage }));
   };
 
-  const handleInputChange = async (e) => {
+  const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
 
-    // Handle email field changes for F-number detection
+    // Only detect F-number pattern, don't verify yet
     if (name === 'email') {
       const isCurrentlyFnumber = isFnumberPattern(value);
+      setIsFnumber(isCurrentlyFnumber);
       
-      if (isCurrentlyFnumber && !isFnumber) {
-        // F-number detected for the first time
-        setIsFnumber(true);
-        setIsFnumberUser(true);
-        setFnumberError(null);
-        setFnumberVerified(false);
-        
-        // Clear password field since it's not needed for F-number users
+      // Clear password field for F-number users
+      if (isCurrentlyFnumber) {
         setFormData(prev => ({ ...prev, password: '' }));
-        
-        // Start verification if value is long enough
-        if (value.trim().length >= 4) {
-          setFnumberVerifying(true);
-          try {
-            const result = await verifyFnumber(value.trim());
-            if (result.success) {
-              setFnumberVerified(true);
-              setFnumberError(null);
-              setFnumberVerificationStatus({ success: true, message: 'F-number verified successfully' });
-              
-              // Auto-populate fields if available from verification
-              if (result.user) {
-                setFormData(prev => ({
-                  ...prev,
-                  name: result.user.displayName || prev.name,
-                  username: result.user.samAccountName || prev.username
-                }));
-              }
-            } else {
-              setFnumberVerified(false);
-              setFnumberError(result.message || 'F-number verification failed');
-              setFnumberVerificationStatus({ success: false, message: result.message || 'F-number verification failed' });
-            }
-          } catch (error) {
-            setFnumberVerified(false);
-            setFnumberError(error.message);
-            setFnumberVerificationStatus({ success: false, message: error.message });
-          } finally {
-            setFnumberVerifying(false);
-          }
-        }
-      } else if (!isCurrentlyFnumber && isFnumber) {
-        // No longer an F-number pattern
-        setIsFnumber(false);
-        setIsFnumberUser(false);
-        setFnumberVerified(false);
-        setFnumberError(null);
-        setFnumberVerifying(false);
-        setFnumberVerificationStatus(null);
-      } else if (isCurrentlyFnumber && isFnumber && value.trim().length >= 4) {
-        // Continue verification for F-number changes
-        setFnumberVerifying(true);
-        try {
-          const result = await verifyFnumber(value.trim());
-          if (result.success) {
-            setFnumberVerified(true);
-            setFnumberError(null);
-            setFnumberVerificationStatus({ success: true, message: 'F-number verified successfully' });
-            
-            if (result.user) {
-              setFormData(prev => ({
-                ...prev,
-                name: result.user.displayName || prev.name,
-                username: result.user.samAccountName || prev.username
-              }));
-            }
-          } else {
-            setFnumberVerified(false);
-            setFnumberError(result.message || 'F-number verification failed');
-            setFnumberVerificationStatus({ success: false, message: result.message || 'F-number verification failed' });
-          }
-        } catch (error) {
-          setFnumberVerified(false);
-          setFnumberError(error.message);
-          setFnumberVerificationStatus({ success: false, message: error.message });
-        } finally {
-          setFnumberVerifying(false);
-        }
       }
     }
   };
-
-  const handleEmailChange = handleInputChange;
 
   const handlePasswordChange = (e) => {
     setNewPassword(e.target.value);
@@ -1409,15 +1325,7 @@ const UsersManagement = () => {
     });
     
     // Check if editing user has F-number email
-    if (isFnumberPattern(user.email)) {
-      setIsFnumber(true);
-      setIsFnumberUser(true);
-      setFnumberVerified(true); // Assume it's already verified since user exists
-    } else {
-      setIsFnumber(false);
-      setIsFnumberUser(false);
-      setFnumberVerified(false);
-    }
+    setIsFnumber(isFnumberPattern(user.email));
     
     setModalOpen(true);
     setError(null);
@@ -1440,29 +1348,54 @@ const UsersManagement = () => {
         throw new Error('All fields are required');
       }
 
-      // For F-number users, ensure verification passed
-      if (isFnumber && !fnumberVerified) {
-        throw new Error('F-number must be verified before registration');
-      }
-
       // Password validation: required for non-F-number users in add mode
       if (mode === 'add' && !isFnumber && (!formData.password || formData.password.length < 6)) {
         throw new Error('Password must be at least 6 characters long');
       }
 
       if (mode === 'add') {
-        // For F-number users, don't send password
-        const userData = isFnumber ? {
-          name: formData.name,
-          email: formData.email,
-          username: formData.username,
-          department: formData.department,
-          role: formData.role,
-          isFnumberUser: true
-        } : formData;
+        let userData;
+        
+        if (isFnumber) {
+          // For F-number users, verify first before creating
+          setFnumberVerifying(true);
+          
+          try {
+            const verificationResult = await verifyFnumber(formData.email.trim());
+            
+            if (!verificationResult.success) {
+              throw new Error(verificationResult.message || 'F-number verification failed');
+            }
+            
+            // If verification successful, prepare user data without password
+            userData = {
+              name: formData.name,
+              email: formData.email,
+              username: formData.username,
+              department: formData.department,
+              role: formData.role,
+              isFnumberUser: true
+            };
+            
+            // Auto-populate fields if available from verification
+            if (verificationResult.user) {
+              userData.name = verificationResult.user.displayName || userData.name;
+              userData.username = verificationResult.user.samAccountName || userData.username;
+            }
+            
+          } catch (verifyError) {
+            throw new Error(`F-number verification failed: ${verifyError.message}`);
+          } finally {
+            setFnumberVerifying(false);
+          }
+        } else {
+          // Regular user with password
+          userData = formData;
+        }
         
         await createUser(userData);
       } else {
+        // Edit mode
         const updateData = {
           name: formData.name,
           email: formData.email,
@@ -1481,6 +1414,7 @@ const UsersManagement = () => {
       setError(err.message);
     } finally {
       setIsLoading(false);
+      setFnumberVerifying(false);
     }
   };
 
@@ -1543,41 +1477,25 @@ const UsersManagement = () => {
   }, [searchTerm, fetchUsers]);
 
   return (
-  <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+  <div className="user-management-container">
     
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'space-between', 
-      alignItems: 'center', 
-      marginBottom: '20px' 
-    }}>
+    <div className="header-section">
       <div>
-        <h2 style={{ margin: '0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h2 className="header-title">
           <Users size={20} /> 
           User Management
         </h2>
         {pagination.total > 0 && (
-          <p style={{ color: '#666', fontSize: '14px', margin: '4px 0 0 28px' }}>
+          <p className="user-count">
             {pagination.total} total users
           </p>
         )}
       </div>
       
-      <div style={{ display: 'flex', gap: '10px' }}>
+      <div className="header-buttons">
         <button 
           onClick={openAddModal}
-          style={{
-            backgroundColor: '#2196f3',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            padding: '10px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            fontWeight: '500'
-          }}
+          className="btn-primary"
         >
           <UserPlus size={16} /> Register New User
         </button>
@@ -1585,19 +1503,7 @@ const UsersManagement = () => {
         <button 
           onClick={fetchUsers}
           disabled={isLoading}
-          style={{
-            backgroundColor: '#f5f5f5',
-            color: '#333',
-            border: 'none',
-            borderRadius: '4px',
-            padding: '8px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: isLoading ? 'not-allowed' : 'pointer',
-            fontWeight: '500',
-            opacity: isLoading ? 0.6 : 1
-          }}
+          className="btn-refresh"
         >
           <RefreshCw size={16} /> Refresh
         </button>
@@ -1605,25 +1511,11 @@ const UsersManagement = () => {
     </div>
 
     {error && (
-      <div style={{ 
-        backgroundColor: '#FFEBEE', 
-        borderLeft: '4px solid #F44336', 
-        padding: '16px', 
-        marginBottom: '20px',
-        borderRadius: '4px'
-      }}>
-        <p style={{ margin: '0 0 8px 0', color: '#c62828' }}>{error}</p>
+      <div className="error-container">
+        <p className="error-message">{error}</p>
         <button 
           onClick={() => { setError(null); fetchUsers(); }}
-          style={{
-            backgroundColor: '#f44336',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            padding: '6px 12px',
-            cursor: 'pointer',
-            fontSize: '12px'
-          }}
+          className="btn-error-retry"
         >
           Try again
         </button>
@@ -1631,98 +1523,59 @@ const UsersManagement = () => {
     )}
 
     {/* Search and Filter */}
-    <div style={{ marginBottom: '20px', position: 'relative' }}>
-      <Search style={{ 
-        position: 'absolute', 
-        left: '10px', 
-        top: '50%', 
-        transform: 'translateY(-50%)', 
-        color: '#666' 
-      }} size={18} />
+    <div className="search-container">
+      <Search className="search-icon" size={18} />
       <input
         type="text"
         placeholder="Search users by name, email, username, department or role..."
-        style={{ 
-          width: '100%', 
-          padding: '10px 10px 10px 40px', 
-          border: '1px solid #ddd', 
-          borderRadius: '4px',
-          fontSize: '14px',
-          boxSizing: 'border-box'
-        }}
+        className="search-input"
         value={searchTerm}
         onChange={handleSearchChange}
       />
     </div>
 
     {/* Users Table */}
-    <div style={{ 
-      border: '1px solid #ddd', 
-      borderRadius: '4px', 
-      overflow: 'hidden',
-      backgroundColor: 'white'
-    }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <div className="table-container">
+      <table className="users-table">
         <thead>
-          <tr style={{ backgroundColor: '#f8f9fa' }}>
-            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' ,color:'green'}}>Name</th>
-            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' ,color:'green'}}>Username</th>
-            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd',color:'green' }}>Email</th>
-            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' ,color:'green'}}>Department</th>
-            <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd',color:'green' }}>Role</th>
-            <th style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #ddd',color:'green' }}>Actions</th>
+          <tr className="table-header">
+            <th>Name</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Department</th>
+            <th>Role</th>
+            <th className="text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
           {users && users.length > 0 ? (
             users.map((user, index) => (
-              <tr key={user.id} style={{ borderBottom: index < users.length - 1 ? '1px solid #eee' : 'none' }}>
-                <td style={{ padding: '12px' }}>{user.name}</td>
-                <td style={{ padding: '12px' }}>{user.username}</td>
-                <td style={{ padding: '12px' }}>{user.email}</td>
-                <td style={{ padding: '12px' }}>{user.department}</td>
-                <td style={{ padding: '12px' }}>{user.role}</td>
-                <td style={{ padding: '12px', textAlign: 'right' }}>
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <tr key={user.id} className="table-row">
+                <td className="table-cell">{user.name}</td>
+                <td className="table-cell">{user.username}</td>
+                <td className="table-cell">{user.email}</td>
+                <td className="table-cell">{user.department}</td>
+                <td className="table-cell">{user.role}</td>
+                <td className="table-cell text-right">
+                  <div className="action-buttons">
                     <button 
                       onClick={() => openEditModal(user)}
                       title="Edit user"
-                      style={{
-                        backgroundColor: '#4CAF50',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        padding: '6px 8px',
-                        cursor: 'pointer'
-                      }}
+                      className="btn-edit"
                     >
                       <Edit size={14} />
                     </button>
                     <button 
                       onClick={() => openPasswordModal(user)}
                       title="Change password"
-                      style={{
-                        backgroundColor: '#ff9800',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        padding: '6px 8px',
-                        cursor: 'pointer'
-                      }}
+                      className="btn-password"
                     >
                       <Key size={14} />
                     </button>
                     <button 
                       onClick={() => handleDeleteUser(user.id, user.name)}
                       title="Delete user"
-                      style={{
-                        backgroundColor: '#f44336',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        padding: '6px 8px',
-                        cursor: 'pointer'
-                      }}
+                      className="btn-delete"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -1732,7 +1585,7 @@ const UsersManagement = () => {
             ))
           ) : (
             <tr>
-              <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+              <td colSpan="6" className="empty-state">
                 {searchTerm ? 'No users match your search' : 'No users found'}
               </td>
             </tr>
@@ -1743,41 +1596,23 @@ const UsersManagement = () => {
 
     {/* Pagination */}
     {pagination.pages > 1 && (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        marginTop: '20px',
-        gap: '10px'
-      }}>
+      <div className="pagination-container">
         <button 
           onClick={() => handlePageChange(pagination.page - 1)}
           disabled={pagination.page <= 1}
-          style={{
-            padding: '8px 12px',
-            border: '1px solid #ddd',
-            borderRadius: '4px',
-            backgroundColor: pagination.page <= 1 ? '#f5f5f5' : 'white',
-            cursor: pagination.page <= 1 ? 'not-allowed' : 'pointer'
-          }}
+          className="btn-pagination"
         >
           Previous
         </button>
         
-        <span style={{ color: '#666' }}>
+        <span className="pagination-info">
           Page {pagination.page} of {pagination.pages}
         </span>
         
         <button 
           onClick={() => handlePageChange(pagination.page + 1)}
           disabled={pagination.page >= pagination.pages}
-          style={{
-            padding: '8px 12px',
-            border: '1px solid #ddd',
-            borderRadius: '4px',
-            backgroundColor: pagination.page >= pagination.pages ? '#f5f5f5' : 'white',
-            cursor: pagination.page >= pagination.pages ? 'not-allowed' : 'pointer'
-          }}
+          className="btn-pagination"
         >
           Next
         </button>
@@ -1786,73 +1621,29 @@ const UsersManagement = () => {
 
     {/* Add/Edit User Modal */}
     {modalOpen && (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000
-      }}>
-        <div style={{
-          backgroundColor: 'white',
-          borderRadius: '8px',
-          padding: '24px',
-          width: '400px',
-          maxHeight: '80vh',
-          overflowY: 'auto'
-        }}>
-          <h2 style={{ margin: '0 0 20px 0' }}>
+      <div className="modal-overlay">
+        <div className="modal-content">
+          <h2 className="modal-title">
             {mode === 'add' ? 'Register New User' : 'Edit User'}
           </h2>
           
           {error && (
-            <div style={{ 
-              backgroundColor: '#FFEBEE', 
-              color: '#c62828', 
-              padding: '10px', 
-              borderRadius: '4px', 
-              marginBottom: '16px',
-              fontSize: '14px'
-            }}>
+            <div className="modal-error">
               {error}
             </div>
           )}
 
-          {/* F-number verification status */}
-          {mode === 'add' && isFnumber && (
-            <div style={{ 
-              backgroundColor: fnumberVerified ? '#E8F5E8' : '#FFEBEE', 
-              color: fnumberVerified ? '#2e7d32' : '#c62828', 
-              padding: '10px', 
-              borderRadius: '4px', 
-              marginBottom: '16px',
-              fontSize: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              {fnumberVerified ? (
-                <>
-                  <CheckCircle size={16} />
-                  F-number verified successfully
-                </>
-              ) : (
-                <>
-                  <AlertCircle size={16} />
-                  {fnumberError || 'F-number verification required'}
-                </>
-              )}
+          {/* Show F-number info during verification */}
+          {mode === 'add' && isFnumber && fnumberVerifying && (
+            <div className="verification-status verification-loading">
+              <div className="loading-spinner"></div>
+              Verifying F-number...
             </div>
           )}
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>
+          <div className="form-container">
+            <div className="form-group">
+              <label>
                 Full Name *
               </label>
               <input
@@ -1862,18 +1653,12 @@ const UsersManagement = () => {
                 onChange={handleInputChange}
                 required
                 placeholder="Enter full name"
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  boxSizing: 'border-box'
-                }}
+                className="form-input"
               />
             </div>
             
-            <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>
+            <div className="form-group">
+              <label>
                 Email {mode === 'add' && '(Enter F-number for LDAP users or regular email)'} *
               </label>
               <input
@@ -1883,38 +1668,12 @@ const UsersManagement = () => {
                 onChange={handleInputChange}
                 required
                 placeholder={mode === 'add' ? "Enter F-number (e.g., F123456) or email address" : "Enter email address"}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  boxSizing: 'border-box'
-                }}
+                className="form-input"
               />
-              {mode === 'add' && fnumberVerifying && (
-                <div style={{ 
-                  marginTop: '4px', 
-                  fontSize: '12px', 
-                  color: '#666',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}>
-                  <div style={{ 
-                    width: '12px', 
-                    height: '12px', 
-                    border: '2px solid #f3f3f3',
-                    borderTop: '2px solid #2196f3',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                  }}></div>
-                  Verifying F-number...
-                </div>
-              )}
             </div>
             
-            <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>
+            <div className="form-group">
+              <label>
                 Username *
               </label>
               <input
@@ -1924,20 +1683,14 @@ const UsersManagement = () => {
                 onChange={handleInputChange}
                 required
                 placeholder="Enter username"
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  boxSizing: 'border-box'
-                }}
+                className="form-input"
               />
             </div>
             
             {/* Password field - hidden for F-number users in add mode */}
             {!(mode === 'add' && isFnumber) && (
-              <div>
-                <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>
+              <div className="form-group">
+                <label>
                   Password *
                 </label>
                 <input
@@ -1948,36 +1701,21 @@ const UsersManagement = () => {
                   required={!(mode === 'add' && isFnumber)}
                   placeholder="Enter password (min 6 characters)"
                   minLength="6"
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px',
-                    boxSizing: 'border-box'
-                  }}
+                  className="form-input"
                 />
               </div>
             )}
 
             {/* Show note for F-number users */}
             {mode === 'add' && isFnumber && (
-              <div style={{ 
-                backgroundColor: '#E3F2FD', 
-                color: '#1976d2', 
-                padding: '10px', 
-                borderRadius: '4px', 
-                fontSize: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <AlertCircle size={14} />
-                F-number users will use LDAP authentication. No password required.
+              <div className="info-note">
+                <Info size={14} />
+                F-number users will use LDAP authentication. F-number will be verified when you submit the form.
               </div>
             )}
             
-            <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>
+            <div className="form-group">
+              <label>
                 Department *
               </label>
               <select
@@ -1985,13 +1723,7 @@ const UsersManagement = () => {
                 value={formData.department}
                 onChange={handleInputChange}
                 required
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  boxSizing: 'border-box'
-                }}
+                className="form-select"
               >
                 <option value="">Select Department</option>
                 {Object.values(DEPARTMENTS).map((dept) => (
@@ -2002,8 +1734,8 @@ const UsersManagement = () => {
               </select>
             </div>
             
-            <div>
-              <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>
+            <div className="form-group">
+              <label>
                 Role *
               </label>
               <select
@@ -2011,13 +1743,7 @@ const UsersManagement = () => {
                 value={formData.role}
                 onChange={handleInputChange}
                 required
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  boxSizing: 'border-box'
-                }}
+                className="form-select"
               >
                 <option value="">Select Role</option>
                 {Object.values(ROLES).map((role) => (
@@ -2029,7 +1755,7 @@ const UsersManagement = () => {
             </div>
           </div>
           
-          <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
+          <div className="modal-buttons">
             <button
               onClick={() => {
                 setModalOpen(false);
@@ -2037,33 +1763,16 @@ const UsersManagement = () => {
                 resetForm();
                 setCurrentUser(null);
               }}
-              style={{
-                backgroundColor: '#f5f5f5',
-                color: '#333',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '10px 20px',
-                cursor: 'pointer',
-                fontWeight: '500'
-              }}
+              className="btn-cancel"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
-              disabled={isLoading || (mode === 'add' && isFnumber && !fnumberVerified)}
-              style={{
-                backgroundColor: '#2196f3',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '10px 20px',
-                cursor: (isLoading || (mode === 'add' && isFnumber && !fnumberVerified)) ? 'not-allowed' : 'pointer',
-                fontWeight: '500',
-                opacity: (isLoading || (mode === 'add' && isFnumber && !fnumberVerified)) ? 0.6 : 1
-              }}
+              disabled={isLoading || fnumberVerifying}
+              className="btn-submit"
             >
-              {isLoading ? 'Processing...' : (mode === 'add' ? 'Register User' : 'Save Changes')}
+              {isLoading || fnumberVerifying ? 'Processing...' : (mode === 'add' ? 'Register User' : 'Save Changes')}
             </button>
           </div>
         </div>
@@ -2072,44 +1781,21 @@ const UsersManagement = () => {
 
     {/* Change Password Modal */}
     {passwordModalOpen && currentUser && (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000
-      }}>
-        <div style={{
-          backgroundColor: 'white',
-          borderRadius: '8px',
-          padding: '24px',
-          width: '400px'
-        }}>
-          <h2 style={{ margin: '0 0 20px 0' }}>Change Password</h2>
-          <p style={{ color: '#666', marginBottom: '20px' }}>
+      <div className="modal-overlay">
+        <div className="password-modal-content">
+          <h2 className="modal-title">Change Password</h2>
+          <p className="password-user-info">
             Update password for <strong>{currentUser.name}</strong> ({currentUser.username})
           </p>
           
           {error && (
-            <div style={{ 
-              backgroundColor: '#FFEBEE', 
-              color: '#c62828', 
-              padding: '10px', 
-              borderRadius: '4px', 
-              marginBottom: '16px',
-              fontSize: '14px'
-            }}>
+            <div className="modal-error">
               {error}
             </div>
           )}
           
-          <div>
-            <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>
+          <div className="form-group">
+            <label>
               New Password *
             </label>
             <input
@@ -2119,17 +1805,11 @@ const UsersManagement = () => {
               required
               placeholder="Enter new password (min 6 characters)"
               minLength="6"
-              style={{
-                width: '100%',
-                padding: '8px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                boxSizing: 'border-box'
-              }}
+              className="form-input"
             />
           </div>
           
-          <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
+          <div className="modal-buttons">
             <button
               onClick={() => {
                 setPasswordModalOpen(false);
@@ -2137,31 +1817,14 @@ const UsersManagement = () => {
                 setNewPassword('');
                 setCurrentUser(null);
               }}
-              style={{
-                backgroundColor: '#f5f5f5',
-                color: '#333',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '10px 20px',
-                cursor: 'pointer',
-                fontWeight: '500'
-              }}
+              className="btn-cancel"
             >
               Cancel
             </button>
             <button
               onClick={handlePasswordSubmit}
               disabled={isLoading}
-              style={{
-                backgroundColor: '#ff9800',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '10px 20px',
-                cursor: isLoading ? 'not-allowed' : 'pointer',
-                fontWeight: '500',
-                opacity: isLoading ? 0.6 : 1
-              }}
+              className="btn-update-password"
             >
               {isLoading ? 'Updating...' : 'Update Password'}
             </button>
@@ -2169,7 +1832,7 @@ const UsersManagement = () => {
         </div>
       </div>
     )}
-
+ 
     {/* Add CSS for spinner animation */}
     <style>
       {`
@@ -2177,14 +1840,32 @@ const UsersManagement = () => {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
+        
+        .verification-loading {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px;
+          background-color: #e3f2fd;
+          border: 1px solid #2196f3;
+          border-radius: 4px;
+          margin-bottom: 15px;
+        }
+        
+        .loading-spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid #f3f3f3;
+          border-top: 2px solid #2196f3;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
       `}
     </style>
   </div>
 );
 }
 export default UsersManagement;
-
-
 
 
 

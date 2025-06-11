@@ -1,19 +1,31 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../Context/AuthContext";
 import "../login.css";
 
 const Login = () => {
-  const [identifier, setIdentifier] = useState(""); // Can be email or f-number
+  const [identifier, setIdentifier] = useState(""); 
   const [password, setPassword] = useState("");
   const [twoFACode, setTwoFACode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showTwoFA, setShowTwoFA] = useState(false);
+  const [showTwoFAModal, setShowTwoFAModal] = useState(false);
   const [twoFASessionId, setTwoFASessionId] = useState(null);
+  const [showManualCodeInput, setShowManualCodeInput] = useState(false);
+  const [pollingInterval, setPollingInterval] = useState(null);
   
   const navigate = useNavigate();
-  const { login, verify2FA, isFnumber } = useAuth();
+  const { login, authenticateLdap, verify2FA, track2FAStatus, isFnumber } = useAuth();
+
+  // Cleanup polling interval on component unmount
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,35 +34,132 @@ const Login = () => {
 
     // Basic validation
     if (!identifier || !password) {
-      setError("Email/F-number and password are required");
+      setError("F-number and password are required");
       setLoading(false);
       return;
     }
 
     // Identifier length validation
     if (identifier.length > 50) {
-      setError("Email/F-number is too long");
+      setError("F-number is too long");
       setLoading(false);
       return;
     }
 
     try {
-      const result = await login(identifier, password);
+      const isUsingFnumber = isFnumber(identifier);
       
-      if (result.success) {
-        if (result.requires2FA) {
-          // LDAP login requires 2FA
-          setShowTwoFA(true);
-          setTwoFASessionId(result.twoFASessionId);
-          setError(""); // Clear any previous errors
-        } else {
-          // Traditional login success
-          navigate("/dashboard");
+      if (isUsingFnumber) {
+        // LDAP Authentication Flow
+        const ldapResult = await authenticateLdap(identifier, password);
+        
+        if (ldapResult.success) {
+          // LDAP authentication successful, now initiate 2FA
+          setTwoFASessionId(ldapResult.twoFASessionId);
+          setShowTwoFAModal(true);
+          setError("");
+          
+          // Start polling for 2FA status
+          startPolling2FAStatus(ldapResult.twoFASessionId);
+        }
+      } else {
+        // Traditional email login
+        const result = await login(identifier, password);
+        
+        if (result.success) {
+          if (result.requires2FA) {
+            setShowTwoFA(true);
+            setTwoFASessionId(result.twoFASessionId);
+            setError("");
+          } else {
+            navigate("/dashboard");
+          }
         }
       }
     } catch (err) {
       console.error('Login error:', err);
       setError(err.message || "Login failed. Please check your credentials.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startPolling2FAStatus = (sessionId) => {
+    const interval = setInterval(async () => {
+      try {
+        const statusResult = await track2FAStatus(sessionId);
+        
+        if (statusResult.success && statusResult.verified) {
+          // 2FA was accepted on phone, complete login
+          clearInterval(interval);
+          setPollingInterval(null);
+          setShowTwoFAModal(false);
+          setLoading(true);
+          
+          // The backend should have already completed the login process
+          // and queried user data, so we can navigate to dashboard
+          navigate("/dashboard");
+        } else if (statusResult.rejected) {
+          // 2FA was rejected
+          clearInterval(interval);
+          setPollingInterval(null);
+          setShowTwoFAModal(false);
+          setError("2FA verification was declined. Please try again.");
+        }
+      } catch (err) {
+        console.error('2FA status polling error:', err);
+        // Don't clear interval here, continue polling unless it's a fatal error
+        if (err.message.includes('session') || err.message.includes('expired')) {
+          clearInterval(interval);
+          setPollingInterval(null);
+          setShowTwoFAModal(false);
+          setError("2FA session expired. Please login again.");
+        }
+      }
+    }, 2000); // Poll every 2 seconds
+
+    setPollingInterval(interval);
+
+    // Auto-stop polling after 5 minutes
+    setTimeout(() => {
+      clearInterval(interval);
+      setPollingInterval(null);
+      if (showTwoFAModal) {
+        setShowTwoFAModal(false);
+        setError("2FA verification timed out. Please try again.");
+      }
+    }, 300000); // 5 minutes
+  };
+
+  const handleManualCodeSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    if (!twoFACode) {
+      setError("2FA code is required");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const result = await verify2FA(twoFACode, twoFASessionId);
+      
+      if (result.success) {
+        // Stop polling if it's running
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+        setShowTwoFAModal(false);
+        setShowTwoFA(false);
+        navigate("/dashboard");
+      } else {
+        setError(result.message || "2FA verification failed");
+      }
+    } catch (err) {
+      console.error('2FA verification error:', err);
+      setError(err.message || "2FA verification failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -84,10 +193,31 @@ const Login = () => {
   };
 
   const handleBackToLogin = () => {
+    // Stop polling if running
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+    
     setShowTwoFA(false);
+    setShowTwoFAModal(false);
     setTwoFACode("");
     setTwoFASessionId(null);
+    setShowManualCodeInput(false);
     setError("");
+  };
+
+  const handleCancelTwoFA = () => {
+    // Stop polling
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+    
+    setShowTwoFAModal(false);
+    setShowManualCodeInput(false);
+    setTwoFACode("");
+    setError("2FA verification cancelled. Please login again.");
   };
 
   // Determine if user is entering f-number or email
@@ -110,7 +240,7 @@ const Login = () => {
                 onChange={(e) => setIdentifier(e.target.value)}
                 maxLength={50}
                 required
-                disabled={loading}
+                disabled={loading || showTwoFAModal}
                 className={isUsingFnumber ? "fnumber-input" : "email-input"}
               />
               {isUsingFnumber && (
@@ -126,7 +256,7 @@ const Login = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              disabled={loading}
+              disabled={loading || showTwoFAModal}
               minLength={6}
             />
             
@@ -135,13 +265,13 @@ const Login = () => {
             <button 
               type="submit" 
               className="login-button"
-              disabled={loading}
+              disabled={loading || showTwoFAModal}
             >
               {loading ? <span className="spinner"></span> : "Login"}
             </button>
           </form>
         ) : (
-          // 2FA verification form
+          // Traditional 2FA verification form (for email login)
           <form onSubmit={handle2FASubmit}>
             <div className="two-fa-section">
               <h3>Two-Factor Authentication</h3>
@@ -182,20 +312,101 @@ const Login = () => {
             </div>
           </form>
         )}
+
+        {/* 2FA Modal for LDAP Authentication */}
+        {showTwoFAModal && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h3>Two-Factor Authentication</h3>
+              </div>
+              
+              <div className="modal-body">
+                <div className="waiting-section">
+                  <div className="pulse-animation">
+                    <div className="pulse-dot"></div>
+                  </div>
+                  <h4>Waiting for Authentication</h4>
+                  <p>A verification prompt has been sent to your mobile device.</p>
+                  <p>Please check your phone and <strong>accept</strong> the authentication request.</p>
+                </div>
+
+                <div className="modal-divider">
+                  <span>OR</span>
+                </div>
+
+                <div className="manual-code-section">
+                  {!showManualCodeInput ? (
+                    <button 
+                      type="button"
+                      className="link-button"
+                      onClick={() => setShowManualCodeInput(true)}
+                    >
+                      Enter verification code manually
+                    </button>
+                  ) : (
+                    <form onSubmit={handleManualCodeSubmit}>
+                      <div className="input-group">
+                        <label>Enter 6-digit verification code:</label>
+                        <input
+                          type="text"
+                          placeholder="000000"
+                          value={twoFACode}
+                          onChange={(e) => setTwoFACode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          maxLength={6}
+                          required
+                          disabled={loading}
+                          className="two-fa-input"
+                          autoFocus
+                        />
+                      </div>
+                      
+                      <div className="manual-code-buttons">
+                        <button 
+                          type="submit" 
+                          className="verify-button"
+                          disabled={loading || twoFACode.length !== 6}
+                        >
+                          {loading ? <span className="spinner"></span> : "Verify Code"}
+                        </button>
+                        
+                        <button 
+                          type="button" 
+                          className="cancel-manual-button"
+                          onClick={() => {
+                            setShowManualCodeInput(false);
+                            setTwoFACode("");
+                          }}
+                          disabled={loading}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
+              
+              {error && <p className="error-message">{error}</p>}
+              
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="cancel-button"
+                  onClick={handleCancelTwoFA}
+                  disabled={loading}
+                >
+                  Cancel Login
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Help section */}
         <div className="login-help">
-          {/* <div className="auth-options">
-            <h4>Authentication Options:</h4>
-            <ul>
-              <li><strong>Email Login:</strong> Use your regular email and password</li>
-              <li><strong>LDAP Login:</strong> Use your f-number (e.g., f00000000) and LDAP password</li>
-            </ul>
-          </div> */}
-          
-          {/* Development credentials - remove in production */}
           <div className="dev-credentials">
-            <strong> Required:</strong><br/>
+            <strong>Required:</strong><br/>
             <small>
               F-number:<br/>
               Password: 
