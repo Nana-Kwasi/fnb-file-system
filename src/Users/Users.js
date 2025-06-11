@@ -1108,10 +1108,6 @@ const UsersManagement = () => {
   // F-number verification function
   const verifyFnumber = async (fnumber) => {
     try {
-      if (!isAdmin()) {
-        throw new Error('Access denied - Admin privileges required');
-      }
-
       const token = getAuthToken();
       const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
       
@@ -1123,12 +1119,12 @@ const UsersManagement = () => {
         },
         body: JSON.stringify({ fnumber }),
       });
-
+  
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'F-number verification failed');
       }
-
+  
       const data = await response.json();
       return data;
     } catch (error) {
@@ -1136,6 +1132,7 @@ const UsersManagement = () => {
       throw error;
     }
   };
+  
 
   const resetForm = () => {
     setFormData({

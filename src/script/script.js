@@ -301,3 +301,65 @@ CREATE INDEX idx_purchase_orders_uploaded_by ON purchase_orders(uploaded_by);
 CREATE INDEX idx_purchase_orders_department ON purchase_orders(department);
 CREATE INDEX idx_purchase_orders_status ON purchase_orders(status);
 CREATE INDEX idx_purchase_orders_created_at ON purchase_orders(created_at DESC);
+
+
+
+//logs
+Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
+Token response status: 200
+Token response data: {
+  "statusCode": 0,
+  "statusMessage": "Success",
+  "serverTimestamp": "2025-06-11T14:27:59.076028122",
+  "data": {
+    "clientId": "f1fb6909-d015-47e1-ad61-93708e570396",
+    "code": "fl_123",
+    "email": "files@gmail.com",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmMWZiNjkwOS1kMDE1LTQ3ZTEtYWQ2MS05MzcwOGU1NzAzOTYiLCJpYXQiOjE3NDk2NTIwNzksImV4cCI6MTc0OTY1MjM3OX0.2QcUnKeidSNY32FXpqakaYBlTFS3QiQQL7nRla81c9w",
+    "tokenExpiryDate": "2025-06-11T14:32:59.070275809"
+  }
+}
+Successfully obtained token
+Searching for user at: https://172.29.18.126/adproxyservice/prod/ldap/search
+Request configuration: {
+  "url": "https://172.29.18.126/adproxyservice/prod/ldap/search",
+  "method": "post",
+  "headers": {
+    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmMWZiNjkwOS1kMDE1LTQ3ZTEtYWQ2MS05MzcwOGU1NzAzOTYiLCJpYXQiOjE3NDk2NTIwNzksImV4cCI6MTc0OTY1MjM3OX0.2QcUnKeidSNY32FXpqakaYBlTFS3QiQQL7nRla81c9w",
+    "Content-Type": "application/json"
+  },
+  "data": {
+    "fnumber": "f8877557"
+  }
+}
+Search response status: 200
+Search response data: {
+  "statusCode": 0,
+  "statusMessage": "Success",
+  "serverTimestamp": "2025-06-11T14:28:01.045779286",
+  "data": {
+    "userId": "F8877557",
+    "mobile": "+233592486117",
+    "email": "Francis.Kontoh@firstnationalbank.com.gh",
+    "userPrincipalName": "F8877557@fnb.co.za",
+    "title": "Internship",
+    "name": "Kontoh, Francis",
+    "manager": "CN=Eshun\\, Kwesi,OU=DomainUsers,DC=fnb,DC=co,DC=za",
+    "memberOf": [
+      "CN=AppsDevelopmentTeam_PROD_IT_FNBGhana,OU=GlobalSecurityGroups,OU=DomainGroups,DC=fnb,DC=co,DC=za",
+      "CN=APPSTEAM_DEV_IT_Works,OU=GlobalSecurityGroups,OU=DomainGroups,DC=fnb,DC=co,DC=za",
+      "CN=W365_VDI_2vCPU8GB256GB_FNB,OU=GlobalSecurityGroups,OU=DomainGroups,DC=fnb,DC=co,DC=za",
+      "CN=CLOUD_VDI_FULLACCESS_FNB,OU=GlobalSecurityGroups,OU=DomainGroups,DC=fnb,DC=co,DC=za",
+      "CN=GlobalWorkDay_CloudApps_All_Users,OU=GlobalSecurityGroups,OU=DomainGroups,DC=fnb,DC=co,DC=za",
+      "CN=GlobalERP_CloudApps_All_Employees,OU=GlobalSecurityGroups,OU=DomainGroups,DC=fnb,DC=co,DC=za",
+      "CN=Myappstore_Prod_AllUsers_FNB,OU=GlobalSecurityGroups,OU=DomainGroups,DC=fnb,DC=co,DC=za",
+      "CN=GlobalERP_CloudApps_All_Users,OU=Office365,OU=DomainUsers,DC=fnb,DC=co,DC=za",
+      "CN=SSO_PROD_FNB_2FABYPASS,OU=GlobalSecurityGroups,OU=DomainGroups,DC=fnb,DC=co,DC=za",
+      "CN=DLP_Level-1-FullLockdown_prod_FNB,OU=GlobalSecurityGroups,OU=DomainGroups,DC=fnb,DC=co,DC=za",
+      "CN=2V_production_FNB_Staff,OU=GlobalSecurityGroups,OU=DomainGroups,DC=fnb,DC=co,DC=za",
+      "CN=Users for 2FA testing,OU=GlobalSecurityGroups,OU=DomainGroups,DC=fnb,DC=co,DC=za",
+      "CN=One Drive Test,OU=DomainGroups,DC=fnb,DC=co,DC=za",
+      "CN=InternetUsers - All,OU=InterNet Access,OU=Security,OU=Groups,OU=FNBUsers,DC=fnb,DC=co,DC=za"
+    ]
+  }
+}
