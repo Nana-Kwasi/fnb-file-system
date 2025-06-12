@@ -926,3 +926,123 @@ Login.js:109
 setInterval		
 startPolling2FAStatus	@	Login.js:88
 handleSubmit	@	Login.js:63
+
+
+
+
+//auth 2fa
+const track2FAStatus = async (sessionId) => {
+  try {
+    // Debug logging
+    console.log('[FRONTEND] track2FAStatus called with sessionId:', sessionId ? 'Present' : 'Missing');
+    
+    // Always require explicit sessionId parameter
+    if (!sessionId) {
+      console.error('[FRONTEND] No sessionId provided to track2FAStatus');
+      throw new Error('2FA session ID is required for status tracking');
+    }
+
+    console.log('[FRONTEND] Making API request to track 2FA status');
+    
+    const response = await apiRequest('/api/auth/track-2fa-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        twoFASessionId: sessionId 
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[FRONTEND] API response not ok:', errorData);
+      throw new Error(errorData.message || 'Failed to track 2FA status');
+    }
+
+    const data = await response.json();
+    console.log('[FRONTEND] 2FA status response:', {
+      verified: data.verified,
+      rejected: data.rejected,
+      statusCode: data.statusCode
+    });
+    
+    return data;
+  } catch (error) {
+    console.error('[FRONTEND] Track 2FA status error:', error);
+    throw error;
+  }
+};
+
+//login  polling 2fa
+const startPolling2FAStatus = (sessionId) => {
+  console.log('[LOGIN] Starting 2FA polling with sessionId:', sessionId ? 'Present' : 'Missing');
+  
+  if (!sessionId) {
+    console.error('[LOGIN] No sessionId provided to startPolling2FAStatus');
+    setError("2FA session ID missing. Please try logging in again.");
+    return;
+  }
+
+  const interval = setInterval(async () => {
+    try {
+      console.log('[LOGIN] Polling 2FA status...');
+      
+      // Make sure we pass the sessionId explicitly
+      const statusResult = await track2FAStatus(sessionId);
+      
+      console.log('[LOGIN] Status result:', {
+        success: statusResult.success,
+        verified: statusResult.verified,
+        rejected: statusResult.rejected
+      });
+      
+      if (statusResult.success && statusResult.verified) {
+        // 2FA was accepted on phone
+        console.log('[LOGIN] 2FA verified successfully');
+        clearInterval(interval);
+        setPollingInterval(null);
+        setShowTwoFAModal(false);
+        setLoading(true);
+        navigate("/dashboard");
+      } else if (statusResult.success && statusResult.rejected) {
+        // 2FA was rejected
+        console.log('[LOGIN] 2FA was rejected');
+        clearInterval(interval);
+        setPollingInterval(null);
+        setShowTwoFAModal(false);
+        setError("2FA verification was declined. Please try again.");
+      }
+      // If neither verified nor rejected, continue polling
+    } catch (err) {
+      console.error('[LOGIN] 2FA status polling error:', err);
+      
+      // Handle session expiry or other fatal errors
+      if (err.message.includes('session') || err.message.includes('expired')) {
+        clearInterval(interval);
+        setPollingInterval(null);
+        setShowTwoFAModal(false);
+        setError("2FA session expired. Please login again.");
+      } else if (err.message.includes('2FA session ID is required')) {
+        // Handle missing session ID error
+        clearInterval(interval);
+        setPollingInterval(null);
+        setShowTwoFAModal(false);
+        setError("2FA session error. Please login again.");
+      }
+    }
+  }, 2000);
+
+  setPollingInterval(interval);
+
+  // Auto-stop polling after 5 minutes
+  setTimeout(() => {
+    console.log('[LOGIN] 2FA polling timeout reached');
+    clearInterval(interval);
+    setPollingInterval(null);
+    if (showTwoFAModal) {
+      setShowTwoFAModal(false);
+      setError("2FA verification timed out. Please try again.");
+    }
+  }, 300000);
+};
