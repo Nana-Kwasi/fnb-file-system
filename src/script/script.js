@@ -379,3 +379,315 @@ Request body: {
 }
 ❌ Missing required fields
 POST /api/auth/users 400 4.410 ms - 53
+
+
+// no special query
+const createUser = async (req, res) => {
+  console.log('=== CREATE USER DEBUG ===');
+  console.log('Request body:', req.body);
+  
+  try {
+    const { 
+      name, 
+      email, 
+      username, 
+      password, 
+      department, 
+      role, 
+      isFnumberUser, 
+      fnumber,
+      ldapData 
+    } = req.body;
+
+    // Validation - password is not required for F-number users
+    if (!name || !email || !username || !department || !role) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required'
+      });
+    }
+
+    // Password validation: required only for non-F-number users
+    if (!isFnumberUser && (!password || password.trim() === '')) {
+      console.log('❌ Password required for non-F-number users');
+      return res.status(400).json({
+        success: false,
+        message: 'Password is required for non-F-number users'
+      });
+    }
+
+    if (!VALID_ROLES.includes(role)) {
+      console.log('❌ Invalid role:', role);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role'
+      });
+    }
+
+    if (!VALID_DEPARTMENTS.includes(department)) {
+      console.log('❌ Invalid department:', department);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid department'
+      });
+    }
+
+    // Check ONLY if email already exists
+    console.log('🔍 Checking for existing email only...');
+    const existingUserResult = await query(
+      'SELECT id, email FROM users WHERE email = $1',
+      [email]
+    );
+
+    console.log('Existing email check result:', {
+      rowCount: existingUserResult.rows.length,
+      existingUsers: existingUserResult.rows
+    });
+
+    if (existingUserResult.rows.length > 0) {
+      const existingUser = existingUserResult.rows[0];
+      console.log('❌ Email already exists:', existingUser);
+      return res.status(409).json({
+        success: false,
+        message: `User already exists with email: ${email}`
+      });
+    }
+
+    let hashedPassword = null;
+    
+    // Handle password based on user type
+    if (isFnumberUser) {
+      console.log('📋 Creating F-number user - no password stored (NULL)');
+      console.log('F-number details:', { fnumber, ldapData });
+      // F-number users don't need passwords - they authenticate via LDAP
+      hashedPassword = null;
+      
+    } else {
+      console.log('🔐 Hashing password for regular user...');
+      hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+      console.log('Password hashed successfully, length:', hashedPassword.length);
+    }
+
+    // Create user
+    console.log('✏️ Creating user in database...');
+    console.log(`ℹ️ User type: ${isFnumberUser ? 'F-number (LDAP)' : 'Regular'}`);
+    
+    // Single query that works for both user types
+    const insertQuery = `INSERT INTO users (name, email, username, password, department, role, is_fnumber_user, fnumber)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                         RETURNING id, name, email, username, department, role, is_fnumber_user, fnumber, created_at`;
+
+    const insertValues = [
+      name, 
+      email, 
+      username, 
+      hashedPassword, // null for F-number users, hashed password for regular users
+      department, 
+      role, 
+      isFnumberUser || false, // true for F-number users, false for regular users
+      fnumber || null // fnumber for F-number users, null for regular users
+    ];
+
+    const newUserResult = await query(insertQuery, insertValues);
+
+    console.log('✅ User created successfully:', newUserResult.rows[0]);
+    console.log('=== END CREATE USER DEBUG ===');
+
+    res.status(201).json({
+      success: true,
+      message: `${isFnumberUser ? 'F-number' : 'Regular'} user created successfully`,
+      user: newUserResult.rows[0]
+    });
+
+  } catch (error) {
+    console.error('❌ Create user error:', error);
+    console.log('Error code:', error.code);
+    console.log('Error detail:', error.detail);
+    console.log('=== END CREATE USER DEBUG ===');
+    
+    if (error.code === '23505') { // Unique violation
+      if (error.constraint && error.constraint.includes('email')) {
+        res.status(409).json({
+          success: false,
+          message: 'Email already exists'
+        });
+      } else if (error.constraint && error.constraint.includes('username')) {
+        console.log('⚠️ Username constraint still exists in database');
+        res.status(500).json({
+          success: false,
+          message: 'Database configuration error - username constraint should be removed'
+        });
+      } else {
+        res.status(409).json({
+          success: false,
+          message: 'User creation failed due to duplicate data'
+        });
+      }
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create user: ' + error.message
+      });
+    }
+  }
+};
+
+// special query
+const createUser = async (req, res) => {
+  console.log('=== CREATE USER DEBUG ===');
+  console.log('Request body:', req.body);
+  
+  try {
+    const { 
+      name, 
+      email, 
+      username, 
+      password, 
+      department, 
+      role, 
+      isFnumberUser, 
+      fnumber,
+      ldapData 
+    } = req.body;
+
+    // Validation - password is not required for F-number users
+    if (!name || !email || !username || !department || !role) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required'
+      });
+    }
+
+    // Password validation: required only for non-F-number users
+    if (!isFnumberUser && (!password || password.trim() === '')) {
+      console.log('❌ Password required for non-F-number users');
+      return res.status(400).json({
+        success: false,
+        message: 'Password is required for non-F-number users'
+      });
+    }
+
+    if (!VALID_ROLES.includes(role)) {
+      console.log('❌ Invalid role:', role);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role'
+      });
+    }
+
+    if (!VALID_DEPARTMENTS.includes(department)) {
+      console.log('❌ Invalid department:', department);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid department'
+      });
+    }
+
+    // Check ONLY if email already exists
+    console.log('🔍 Checking for existing email only...');
+    const existingUserResult = await query(
+      'SELECT id, email FROM users WHERE email = $1',
+      [email]
+    );
+
+    console.log('Existing email check result:', {
+      rowCount: existingUserResult.rows.length,
+      existingUsers: existingUserResult.rows
+    });
+
+    if (existingUserResult.rows.length > 0) {
+      const existingUser = existingUserResult.rows[0];
+      console.log('❌ Email already exists:', existingUser);
+      return res.status(409).json({
+        success: false,
+        message: `User already exists with email: ${email}`
+      });
+    }
+
+    let hashedPassword = null;
+    
+    // Handle password based on user type
+    if (isFnumberUser) {
+      console.log('📋 Creating F-number user - no password stored (NULL)');
+      console.log('F-number details:', { fnumber, ldapData });
+      // F-number users don't need passwords - they authenticate via LDAP
+      hashedPassword = null;
+      
+    } else {
+      console.log('🔐 Hashing password for regular user...');
+      hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+      console.log('Password hashed successfully, length:', hashedPassword.length);
+    }
+
+    // Create user
+    console.log('✏️ Creating user in database...');
+    console.log(`ℹ️ User type: ${isFnumberUser ? 'F-number (LDAP)' : 'Regular'}`);
+    
+    // You might want to add additional columns for F-number users
+    const insertQuery = isFnumberUser 
+      ? `INSERT INTO users (name, email, username, password, department, role, is_fnumber_user, fnumber)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id, name, email, username, department, role, is_fnumber_user, fnumber, created_at`
+      : `INSERT INTO users (name, email, username, password, department, role, is_fnumber_user)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, name, email, username, department, role, is_fnumber_user, created_at`;
+
+    const insertValues = isFnumberUser 
+      ? [name, email, username, hashedPassword, department, role, true, fnumber]
+      : [name, email, username, hashedPassword, department, role, false];
+
+    const newUserResult = await query(insertQuery, insertValues);
+
+    console.log('✅ User created successfully:', newUserResult.rows[0]);
+    console.log('=== END CREATE USER DEBUG ===');
+
+    res.status(201).json({
+      success: true,
+      message: `${isFnumberUser ? 'F-number' : 'Regular'} user created successfully`,
+      user: newUserResult.rows[0]
+    });
+
+  } catch (error) {
+    console.error('❌ Create user error:', error);
+    console.log('Error code:', error.code);
+    console.log('Error detail:', error.detail);
+    console.log('=== END CREATE USER DEBUG ===');
+    
+    if (error.code === '23505') { // Unique violation
+      if (error.constraint && error.constraint.includes('email')) {
+        res.status(409).json({
+          success: false,
+          message: 'Email already exists'
+        });
+      } else if (error.constraint && error.constraint.includes('username')) {
+        console.log('⚠️ Username constraint still exists in database');
+        res.status(500).json({
+          success: false,
+          message: 'Database configuration error - username constraint should be removed'
+        });
+      } else {
+        res.status(409).json({
+          success: false,
+          message: 'User creation failed due to duplicate data'
+        });
+      }
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create user: ' + error.message
+      });
+    }
+  }
+};
+
+
+// sql 
+-- Add columns to support F-number users
+ALTER TABLE users 
+ADD COLUMN is_fnumber_user BOOLEAN DEFAULT FALSE,
+ADD COLUMN fnumber VARCHAR(20) NULL;
+
+-- Optional: Add index for faster F-number lookups
+CREATE INDEX idx_users_fnumber ON users(fnumber) WHERE fnumber IS NOT NULL;
