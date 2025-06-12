@@ -1051,3 +1051,65 @@ const track2FAStatus = async (sessionId) => {
 //neww logs
 2FA session ID missing. Please try logging in again.
 
+//auth
+const track2FAStatus = async (sessionId) => {
+  try {
+    // Always require explicit sessionId parameter
+    if (!sessionId) {
+      throw new Error('2FA session ID is required for status tracking');
+    }
+
+    const response = await apiRequest('/api/auth/track-2fa-status', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        token: sessionId,  // Changed from twoFASessionId to token
+        fnumber: null      // Add fnumber if needed
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to track 2FA status');
+    }
+
+    const data = await response.json();
+    
+    // Map the backend response to frontend expectations
+    return {
+      success: true,
+      verified: data.verificationStatus === "success",
+      rejected: data.verificationStatus === "failed",
+      pending: data.verificationStatus === "pending"
+    };
+  } catch (error) {
+    console.error('Track 2FA status error:', error);
+    throw error;
+  }
+};
+
+//loggin 
+const statusResult = await track2FAStatus(sessionId);
+
+console.log('[LOGIN] Status result:', {
+  success: statusResult.success,
+  verified: statusResult.verified,
+  rejected: statusResult.rejected,
+  pending: statusResult.pending
+});
+
+if (statusResult.success && statusResult.verified) {
+  // 2FA was accepted on phone
+  console.log('[LOGIN] 2FA verified successfully');
+  clearInterval(interval);
+  setPollingInterval(null);
+  setShowTwoFAModal(false);
+  setLoading(true);
+  navigate("/dashboard");
+} else if (statusResult.success && statusResult.rejected) {
+  // 2FA was rejected
+  console.log('[LOGIN] 2FA was rejected');
+  clearInterval(interval);
+  setPollingInterval(null);
+  setShowTwoFAModal(false);
+  setError("2FA verification was declined. Please try again.");
+}
