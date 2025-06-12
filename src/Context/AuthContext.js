@@ -463,24 +463,23 @@ export const AuthProvider = ({ children }) => {
    * @param {string} sessionId - 2FA session ID (optional, uses stored if not provided)
    * @returns {Promise<Object>} 2FA status
    */
-  const track2FAStatus = async (sessionId = null) => {
+  const track2FAStatus = async (sessionId) => {
     try {
-      const activeSessionId = sessionId || twoFASessionId;
-      
-      if (!activeSessionId) {
-        throw new Error('No active 2FA session found');
+      // Always require explicit sessionId parameter
+      if (!sessionId) {
+        throw new Error('2FA session ID is required for status tracking');
       }
-
+  
       const response = await apiRequest('/api/auth/track-2fa-status', {
         method: 'POST',
-        body: JSON.stringify({ twoFASessionId: activeSessionId }),
+        body: JSON.stringify({ twoFASessionId: sessionId }),
       });
-
+  
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to track 2FA status');
       }
-
+  
       const data = await response.json();
       return data;
     } catch (error) {
@@ -488,6 +487,7 @@ export const AuthProvider = ({ children }) => {
       throw error;
     }
   };
+  
 
   /**
    * Verify F-number exists in LDAP (Admin only)

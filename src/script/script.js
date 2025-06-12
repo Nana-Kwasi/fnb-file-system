@@ -747,7 +747,7 @@ POST /api/auth/ldap/authenticate 200 2156.909 ms - 318
  * @param {string} sessionId - 2FA session ID (required - don't rely on stored state)
  * @returns {Promise<Object>} 2FA status
  */
-const track2FAStatus = async (sessionId) => {
+  const track2FAStatus = async (sessionId) => {
   try {
     // Always require explicit sessionId parameter
     if (!sessionId) {
@@ -776,7 +776,7 @@ const track2FAStatus = async (sessionId) => {
 
 
 // NEW backend  : Track 2FA Status function
-const track2FAStatus = async (req, res) => {
+  const track2FAStatus = async (req, res) => {
   const { twoFASessionId, fnumber } = req.body; // Changed from 'token' to 'twoFASessionId'
 
   if (!twoFASessionId) {
@@ -862,7 +862,7 @@ const track2FAStatus = async (req, res) => {
 
 //login
 
-const startPolling2FAStatus = (sessionId) => {
+   const startPolling2FAStatus = (sessionId) => {
   const interval = setInterval(async () => {
     try {
       // Make sure we pass the sessionId explicitly
@@ -907,3 +907,22 @@ const startPolling2FAStatus = (sessionId) => {
     }
   }, 300000);
 };
+
+//new logs
+AuthContext.js:486 
+ Track 2FA status error: Error: 2FA session ID is required for status tracking
+    at track2FAStatus (AuthContext.js:470:1)
+    at Login.js:91:1
+track2FAStatus	@	AuthContext.js:486
+(anonymous)	@	Login.js:91
+setInterval		
+startPolling2FAStatus	@	Login.js:88
+handleSubmit	@	Login.js:63
+Login.js:109 
+ 2FA status polling error: Error: 2FA session ID is required for status tracking
+    at track2FAStatus (AuthContext.js:470:1)
+    at Login.js:91:1
+(anonymous)	@	Login.js:109
+setInterval		
+startPolling2FAStatus	@	Login.js:88
+handleSubmit	@	Login.js:63

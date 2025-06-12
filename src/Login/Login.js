@@ -87,28 +87,27 @@ const Login = () => {
   const startPolling2FAStatus = (sessionId) => {
     const interval = setInterval(async () => {
       try {
+        // Make sure we pass the sessionId explicitly
         const statusResult = await track2FAStatus(sessionId);
         
         if (statusResult.success && statusResult.verified) {
-          // 2FA was accepted on phone, complete login
+          // 2FA was accepted on phone
           clearInterval(interval);
           setPollingInterval(null);
           setShowTwoFAModal(false);
           setLoading(true);
-          
-          // The backend should have already completed the login process
-          // and queried user data, so we can navigate to dashboard
           navigate("/dashboard");
-        } else if (statusResult.rejected) {
+        } else if (statusResult.success && statusResult.rejected) {
           // 2FA was rejected
           clearInterval(interval);
           setPollingInterval(null);
           setShowTwoFAModal(false);
           setError("2FA verification was declined. Please try again.");
         }
+        // If neither verified nor rejected, continue polling
       } catch (err) {
         console.error('2FA status polling error:', err);
-        // Don't clear interval here, continue polling unless it's a fatal error
+        // Handle session expiry or other fatal errors
         if (err.message.includes('session') || err.message.includes('expired')) {
           clearInterval(interval);
           setPollingInterval(null);
@@ -116,10 +115,10 @@ const Login = () => {
           setError("2FA session expired. Please login again.");
         }
       }
-    }, 2000); // Poll every 2 seconds
-
+    }, 2000);
+  
     setPollingInterval(interval);
-
+  
     // Auto-stop polling after 5 minutes
     setTimeout(() => {
       clearInterval(interval);
@@ -128,7 +127,7 @@ const Login = () => {
         setShowTwoFAModal(false);
         setError("2FA verification timed out. Please try again.");
       }
-    }, 300000); // 5 minutes
+    }, 300000);
   };
 
   const handleManualCodeSubmit = async (e) => {
