@@ -1052,6 +1052,7 @@ const track2FAStatus = async (sessionId) => {
 2FA session ID missing. Please try logging in again.
 
 //auth
+
 const track2FAStatus = async (sessionId) => {
   try {
     // Always require explicit sessionId parameter
@@ -1088,6 +1089,8 @@ const track2FAStatus = async (sessionId) => {
 };
 
 //loggin 
+
+
 const statusResult = await track2FAStatus(sessionId);
 
 console.log('[LOGIN] Status result:', {

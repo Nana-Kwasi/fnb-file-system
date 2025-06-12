@@ -464,48 +464,41 @@ export const AuthProvider = ({ children }) => {
    * @returns {Promise<Object>} 2FA status
    */
  
-const track2FAStatus = async (sessionId) => {
-  try {
-    // Debug logging
-    console.log('[FRONTEND] track2FAStatus called with sessionId:', sessionId ? 'Present' : 'Missing');
-    
-    // Always require explicit sessionId parameter
-    if (!sessionId) {
-      console.error('[FRONTEND] No sessionId provided to track2FAStatus');
-      throw new Error('2FA session ID is required for status tracking');
+
+  const track2FAStatus = async (sessionId) => {
+    try {
+      // Always require explicit sessionId parameter
+      if (!sessionId) {
+        throw new Error('2FA session ID is required for status tracking');
+      }
+  
+      const response = await apiRequest('/api/auth/track-2fa-status', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          token: sessionId,  // Changed from twoFASessionId to token
+          fnumber: null      // Add fnumber if needed
+        }),
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to track 2FA status');
+      }
+  
+      const data = await response.json();
+      
+      // Map the backend response to frontend expectations
+      return {
+        success: true,
+        verified: data.verificationStatus === "success",
+        rejected: data.verificationStatus === "failed",
+        pending: data.verificationStatus === "pending"
+      };
+    } catch (error) {
+      console.error('Track 2FA status error:', error);
+      throw error;
     }
-
-    console.log('[FRONTEND] Making API request to track 2FA status');
-    
-    const response = await apiRequest('/api/auth/track-2fa-status', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        twoFASessionId: sessionId 
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('[FRONTEND] API response not ok:', errorData);
-      throw new Error(errorData.message || 'Failed to track 2FA status');
-    }
-
-    const data = await response.json();
-    console.log('[FRONTEND] 2FA status response:', {
-      verified: data.verified,
-      rejected: data.rejected,
-      statusCode: data.statusCode
-    });
-    
-    return data;
-  } catch (error) {
-    console.error('[FRONTEND] Track 2FA status error:', error);
-    throw error;
-  }
-};
+  };
 
   /**
    * Verify F-number exists in LDAP (Admin only)

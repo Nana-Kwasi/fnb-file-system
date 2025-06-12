@@ -103,11 +103,11 @@ const Login = () => {
         console.log('[LOGIN] Status result:', {
           success: statusResult.success,
           verified: statusResult.verified,
-          rejected: statusResult.rejected
+          rejected: statusResult.rejected,
+          pending: statusResult.pending
         });
         
-        if (statusResult.success && statusResult.verified) {
-          // 2FA was accepted on phone
+        if (statusResult.success && statusResult.verified) {          // 2FA was accepted on phone
           console.log('[LOGIN] 2FA verified successfully');
           clearInterval(interval);
           setPollingInterval(null);
