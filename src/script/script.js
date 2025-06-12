@@ -931,6 +931,7 @@ handleSubmit	@	Login.js:63
 
 
 //auth 2fa
+
 const track2FAStatus = async (sessionId) => {
   try {
     // Debug logging
@@ -975,7 +976,7 @@ const track2FAStatus = async (sessionId) => {
 };
 
 //login  polling 2fa
-const startPolling2FAStatus = (sessionId) => {
+  const startPolling2FAStatus = (sessionId) => {
   console.log('[LOGIN] Starting 2FA polling with sessionId:', sessionId ? 'Present' : 'Missing');
   
   if (!sessionId) {
@@ -1046,3 +1047,7 @@ const startPolling2FAStatus = (sessionId) => {
     }
   }, 300000);
 };
+
+//neww logs
+2FA session ID missing. Please try logging in again.
+

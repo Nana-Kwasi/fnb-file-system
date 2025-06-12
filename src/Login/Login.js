@@ -85,13 +85,30 @@ const Login = () => {
   };
 
   const startPolling2FAStatus = (sessionId) => {
+    console.log('[LOGIN] Starting 2FA polling with sessionId:', sessionId ? 'Present' : 'Missing');
+    
+    if (!sessionId) {
+      console.error('[LOGIN] No sessionId provided to startPolling2FAStatus');
+      setError("2FA session ID missing. Please try logging in again.");
+      return;
+    }
+  
     const interval = setInterval(async () => {
       try {
+        console.log('[LOGIN] Polling 2FA status...');
+        
         // Make sure we pass the sessionId explicitly
         const statusResult = await track2FAStatus(sessionId);
         
+        console.log('[LOGIN] Status result:', {
+          success: statusResult.success,
+          verified: statusResult.verified,
+          rejected: statusResult.rejected
+        });
+        
         if (statusResult.success && statusResult.verified) {
           // 2FA was accepted on phone
+          console.log('[LOGIN] 2FA verified successfully');
           clearInterval(interval);
           setPollingInterval(null);
           setShowTwoFAModal(false);
@@ -99,6 +116,7 @@ const Login = () => {
           navigate("/dashboard");
         } else if (statusResult.success && statusResult.rejected) {
           // 2FA was rejected
+          console.log('[LOGIN] 2FA was rejected');
           clearInterval(interval);
           setPollingInterval(null);
           setShowTwoFAModal(false);
@@ -106,13 +124,20 @@ const Login = () => {
         }
         // If neither verified nor rejected, continue polling
       } catch (err) {
-        console.error('2FA status polling error:', err);
+        console.error('[LOGIN] 2FA status polling error:', err);
+        
         // Handle session expiry or other fatal errors
         if (err.message.includes('session') || err.message.includes('expired')) {
           clearInterval(interval);
           setPollingInterval(null);
           setShowTwoFAModal(false);
           setError("2FA session expired. Please login again.");
+        } else if (err.message.includes('2FA session ID is required')) {
+          // Handle missing session ID error
+          clearInterval(interval);
+          setPollingInterval(null);
+          setShowTwoFAModal(false);
+          setError("2FA session error. Please login again.");
         }
       }
     }, 2000);
@@ -121,6 +146,7 @@ const Login = () => {
   
     // Auto-stop polling after 5 minutes
     setTimeout(() => {
+      console.log('[LOGIN] 2FA polling timeout reached');
       clearInterval(interval);
       setPollingInterval(null);
       if (showTwoFAModal) {
