@@ -691,3 +691,49 @@ ADD COLUMN fnumber VARCHAR(20) NULL;
 
 -- Optional: Add index for faster F-number lookups
 CREATE INDEX idx_users_fnumber ON users(fnumber) WHERE fnumber IS NOT NULL;
+
+
+
+
+//2fa log on frontend
+AuthContext.js:487 
+ Track 2FA status error: Error: No active 2FA session found
+    at track2FAStatus (AuthContext.js:471:1)
+    at Login.js:90:1
+track2FAStatus	@	AuthContext.js:487
+(anonymous)	@	Login.js:90
+setInterval		
+startPolling2FAStatus	@	Login.js:88
+handleSubmit	@	Login.js:63
+Login.js:110 
+ 2FA status polling error: Error: No active 2FA session found
+    at track2FAStatus (AuthContext.js:471:1)
+    at Login.js:90:1
+(anonymous)	@	Login.js:110
+setInterval		
+startPolling2FAStatus	@	Login.js:88
+handleSubmit	@	Login.js:63
+
+
+//2fa log on frontend
+
+✅ Logout logged for session: 13fb75f1-2b34-472a-804c-b3a25d1842c6
+POST /api/auth/logout 200 11.993 ms - 46
+[LDAP-AUTH] Authentication attempt for user: F8877557
+Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
+Token response status: 200
+[LDAP-AUTH] Successfully obtained token for authentication
+[LDAP-AUTH] Sending authentication request to LDAP service
+[LDAP-AUTH] Auth response status: 200
+[LDAP-AUTH] Authentication successful for user: F8877557
+[LDAP-AUTH] Returning token for 2FA verification
+POST /api/auth/ldap/authenticate 200 2263.716 ms - 318
+[LDAP-AUTH] Authentication attempt for user: F8877557
+Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
+Token response status: 200
+[LDAP-AUTH] Successfully obtained token for authentication
+[LDAP-AUTH] Sending authentication request to LDAP service
+[LDAP-AUTH] Auth response status: 200
+[LDAP-AUTH] Authentication successful for user: F8877557
+[LDAP-AUTH] Returning token for 2FA verification
+POST /api/auth/ldap/authenticate 200 2156.909 ms - 318
