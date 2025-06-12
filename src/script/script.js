@@ -363,3 +363,19 @@ Search response data: {
     ]
   }
 }
+
+
+//log
+=== CREATE USER DEBUG ===
+Request body: {
+  name: 'Francis Kontoh',
+  email: 'f8877557',
+  username: 'admin',
+  department: 'IT',
+  role: 'DEPARTMENT_USER',
+  isFnumberUser: true,
+  fnumber: 'f8877557',
+  ldapData: null
+}
+❌ Missing required fields
+POST /api/auth/users 400 4.410 ms - 53

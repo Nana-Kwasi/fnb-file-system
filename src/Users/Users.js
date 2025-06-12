@@ -1015,6 +1015,7 @@ import {
   Info,
   AlertCircle
 } from 'lucide-react';
+import "../user.css"
 
 const UsersManagement = () => {
   // State management
