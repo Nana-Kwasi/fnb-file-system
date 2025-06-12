@@ -723,7 +723,7 @@ const Login = () => {
     <div className="login-container">
       <div className="login-card">
         <img src="/FNB logo.png" alt="FNB Logo" className="login-logo" />
-        <h2>Welcome to FNB File System</h2>
+        <h2>Welcome to First National Bank File System</h2>
         
         {!showTwoFA ? (
           // Initial login form

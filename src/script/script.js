@@ -1120,6 +1120,7 @@ if (statusResult.success && statusResult.verified) {
 
 
 //backend 2fa new
+
 const track2FAStatus = async (req, res) => {
   // Accept both 'token' and 'twoFASessionId' for compatibility
   const { token, twoFASessionId, fnumber } = req.body;
@@ -1195,3 +1196,56 @@ const track2FAStatus = async (req, res) => {
     });
   }
 };
+
+
+// qeury
+PS C:\Users\f8877557\file-database-backend> node server.js
+Initializing database connection pool...
+Testing database connection...
+Server running on port 5000
+✓ New database client connected (PID: 36300)
+✓ Database client acquired from pool (PID: 36300)
+✓ Client acquired successfully (PID: 36300)
+✓ Database connection successful!
+  - Current time: Thu Jun 12 2025 16:33:50 GMT+0000 (Coordinated Universal Time)
+  - Database: PostgreSQL 15.12,
+  - Pool status: 1 total, 0 idle, 0 waiting
+[LDAP-AUTH] Authentication attempt for user: F8877557
+Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
+Token response status: 200
+[LDAP-AUTH] Successfully obtained token for authentication
+[LDAP-AUTH] Sending authentication request to LDAP service
+[LDAP-AUTH] Auth response status: 200
+[LDAP-AUTH] Authentication successful for user: F8877557
+[LDAP-AUTH] Returning token for 2FA verification
+POST /api/auth/ldap/authenticate 200 3857.921 ms - 318
+[LDAP-AUTH] Returning token for 2FA verification
+POST /api/auth/ldap/authenticate 200 3857.921 ms - 318
+[TRACK] Checking 2FA verification status for token: c97a941f-4...f847ee33e0
+Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
+POST /api/auth/ldap/authenticate 200 3857.921 ms - 318
+[TRACK] Checking 2FA verification status for token: c97a941f-4...f847ee33e0
+Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
+[TRACK] Checking 2FA verification status for token: c97a941f-4...f847ee33e0
+Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
+Token response status: 200
+Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
+Token response status: 200
+Token response status: 200
+[TRACK] Successfully obtained token for status tracking
+[TRACK] Sending status check to LDAP service
+[TRACK] Sending status check to LDAP service
+[TRACK] Checking 2FA verification status for token: c97a941f-4...f847ee33e0
+[TRACK] Checking 2FA verification status for token: c97a941f-4...f847ee33e0
+Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
+[TRACK] Status response code: 200
+[TRACK] Status code: 000, Message: Successful authentication, Data status: Success
+POST /api/auth/track-2fa-status 200 2549.063 ms - 154
+Token response status: 200
+[TRACK] Successfully obtained token for status tracking
+[TRACK] Sending status check to LDAP service
+[TRACK] Status response code: 200
+[TRACK] Status code: 000, Message: Successful authentication, Data status: Success
+POST /api/auth/track-2fa-status 200 2031.193 ms - 154
+
+
