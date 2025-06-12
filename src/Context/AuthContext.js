@@ -459,46 +459,50 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Track 2FA verification status
-   * @param {string} sessionId - 2FA session ID (optional, uses stored if not provided)
-   * @returns {Promise<Object>} 2FA status
-   */
- 
-
-  const track2FAStatus = async (sessionId) => {
-    try {
-      // Always require explicit sessionId parameter
-      if (!sessionId) {
-        throw new Error('2FA session ID is required for status tracking');
-      }
-  
-      const response = await apiRequest('/api/auth/track-2fa-status', {
-        method: 'POST',
-        body: JSON.stringify({ 
-          token: sessionId,  // Changed from twoFASessionId to token
-          fnumber: null      // Add fnumber if needed
-        }),
-      });
-  
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to track 2FA status');
-      }
-  
-      const data = await response.json();
-      
-      // Map the backend response to frontend expectations
-      return {
-        success: true,
-        verified: data.verificationStatus === "success",
-        rejected: data.verificationStatus === "failed",
-        pending: data.verificationStatus === "pending"
-      };
-    } catch (error) {
-      console.error('Track 2FA status error:', error);
-      throw error;
+ * Track 2FA verification status
+ * @param {string} sessionId - 2FA session ID (required)
+ * @returns {Promise<Object>} 2FA status
+ */
+const track2FAStatus = async (sessionId) => {
+  try {
+    console.log('[AUTH_CONTEXT] Tracking 2FA status with sessionId:', sessionId ? 'Present' : 'Missing');
+    
+    // Always require explicit sessionId parameter
+    if (!sessionId) {
+      throw new Error('2FA session ID is required for status tracking');
     }
-  };
+
+    const response = await apiRequest('/api/auth/track-2fa-status', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        token: sessionId, // Backend expects 'token', not 'twoFASessionId'
+        twoFASessionId: sessionId // Send both for compatibility
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to track 2FA status');
+    }
+
+    const data = await response.json();
+    console.log('[AUTH_CONTEXT] Track 2FA response:', data);
+    
+    return {
+      success: data.success,
+      verificationStatus: data.verificationStatus,
+      statusCode: data.statusCode,
+      statusMessage: data.statusMessage,
+      verified: data.verificationStatus === "success",
+      rejected: data.verificationStatus === "failed",
+      pending: data.verificationStatus === "pending",
+      fnumber: data.fnumber
+    };
+  } catch (error) {
+    console.error('Track 2FA status error:', error);
+    throw error;
+  }
+};
 
   /**
    * Verify F-number exists in LDAP (Admin only)

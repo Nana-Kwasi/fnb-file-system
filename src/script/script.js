@@ -1116,3 +1116,82 @@ if (statusResult.success && statusResult.verified) {
   setShowTwoFAModal(false);
   setError("2FA verification was declined. Please try again.");
 }
+
+
+
+//backend 2fa new
+const track2FAStatus = async (req, res) => {
+  // Accept both 'token' and 'twoFASessionId' for compatibility
+  const { token, twoFASessionId, fnumber } = req.body;
+  
+  // Use whichever is provided
+  const sessionToken = token || twoFASessionId;
+
+  if (!sessionToken) {
+    return res.status(400).json({
+      success: false,
+      error: 'Token is required'
+    });
+  }
+
+  try {
+    console.log("[TRACK] Checking 2FA verification status for token:",
+      sessionToken.substring(0, 10) + "..." + sessionToken.substring(sessionToken.length - 10));
+
+    const authToken = await getAuthToken();
+    console.log('[TRACK] Successfully obtained token for status tracking');
+
+    console.log('[TRACK] Sending status check to LDAP service');
+    const verifyResponse = await axios.post(LDAP_VERIFY_2FA_URL, {
+      token: sessionToken,
+      code: ""
+    }, {
+      headers: {
+        'Authorization': authToken,
+        'Content-Type': 'application/json'
+      },
+      httpsAgent: new require('https').Agent({ rejectUnauthorized: false })
+    });
+
+    console.log('[TRACK] Status response code:', verifyResponse.status);
+
+    const statusCode = verifyResponse.data.status_code;
+    const statusMessage = verifyResponse.data.status_message;
+    const dataStatus = verifyResponse.data.data?.status;
+
+    console.log(`[TRACK] Status code: ${statusCode}, Message: ${statusMessage}, Data status: ${dataStatus}`);
+
+    let verificationStatus = "pending";
+
+    if (statusCode === "000" || statusCode === "0" || statusCode === 0) {
+      verificationStatus = "success";
+    }
+    else if (statusCode !== "002" && statusMessage?.toLowerCase() !== "pending authentication") {
+      verificationStatus = "failed";
+    }
+
+    const responseFnumber = verifyResponse.data.data?.fnumber || fnumber;
+
+    return res.status(200).json({
+      success: true,
+      statusCode,
+      statusMessage,
+      dataStatus,
+      verificationStatus,
+      fnumber: responseFnumber
+    });
+
+  } catch (err) {
+    console.error('[TRACK] Status tracking error:', err.message);
+
+    if (err.response) {
+      console.error('[TRACK] Error response status:', err.response.status);
+      console.error('[TRACK] Error response data:', JSON.stringify(err.response.data, null, 2));
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: `Server error during status tracking: ${err.message}`
+    });
+  }
+};
