@@ -1319,3 +1319,714 @@ if (!user.is_fnumber_user) {
     error: 'Invalid user type for F-number authentication.',
   });
 }
+
+
+//new api for query
+// Add this to your authController.js
+
+/**
+ * Get user data by F-number
+ * This function queries the users table to find a user by their F-number
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getUserByFnumber = async (req, res) => {
+  const { fnumber } = req.body;
+
+  // Validate input
+  if (!fnumber) {
+    return res.status(400).json({
+      success: false,
+      error: 'F-number is required'
+    });
+  }
+
+  // Validate F-number format (f followed by 7 digits)
+  const fnumberRegex = /^f\d{7}$/i;
+  if (!fnumberRegex.test(fnumber)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid F-number format. Expected format: f1234567'
+    });
+  }
+
+  try {
+    console.log(`[GET_USER_BY_FNUMBER] Querying user data for F-number: ${fnumber}`);
+
+    // Query users table to get user info using f-number
+    // For F-number users, both email and fnumber columns contain the same f-number (format: f8877557)
+    const userResult = await query(`
+      SELECT 
+        id, 
+        name, 
+        email, 
+        username, 
+        department, 
+        role, 
+        status, 
+        is_active, 
+        last_login, 
+        created_at, 
+        updated_at, 
+        is_fnumber_user, 
+        fnumber
+      FROM users 
+      WHERE is_fnumber_user = true 
+      AND is_active = true
+      AND (LOWER(email) = LOWER($1) OR LOWER(fnumber) = LOWER($1))
+    `, [fnumber]);
+
+    console.log(`[GET_USER_BY_FNUMBER] Query result count: ${userResult.rows.length}`);
+
+    if (userResult.rows.length === 0) {
+      console.log(`[GET_USER_BY_FNUMBER] F-number user ${fnumber} not found in users table`);
+      
+      // Debug: Let's see what F-number users exist with similar patterns
+      try {
+        const debugResult = await query(`
+          SELECT id, email, fnumber, is_fnumber_user 
+          FROM users 
+          WHERE is_fnumber_user = true 
+          AND is_active = true 
+          AND (email ILIKE $1 OR fnumber ILIKE $1)
+          LIMIT 5
+        `, [`%${fnumber.replace('f', '')}%`]);
+        
+        console.log(`[GET_USER_BY_FNUMBER] Debug - F-number users found with similar patterns:`, debugResult.rows);
+      } catch (debugError) {
+        console.error(`[GET_USER_BY_FNUMBER] Debug query failed:`, debugError);
+      }
+      
+      return res.status(404).json({
+        success: false,
+        error: 'F-number user not found in system. Please contact administrator.',
+        fnumber: fnumber
+      });
+    }
+
+    const user = userResult.rows[0];
+    console.log(`[GET_USER_BY_FNUMBER] F-number user found in database:`, {
+      id: user.id,
+      email: user.email,
+      fnumber: user.fnumber,
+      name: user.name,
+      role: user.role,
+      department: user.department,
+      is_fnumber_user: user.is_fnumber_user
+    });
+
+    // Verify this is indeed an F-number user
+    if (!user.is_fnumber_user) {
+      console.error(`[GET_USER_BY_FNUMBER] User found but is_fnumber_user is false for ${fnumber}`);
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user type for F-number authentication.',
+        fnumber: fnumber
+      });
+    }
+
+    // Check if user is active
+    if (!user.is_active) {
+      console.error(`[GET_USER_BY_FNUMBER] User found but is not active for ${fnumber}`);
+      return res.status(403).json({
+        success: false,
+        error: 'User account is not active. Please contact administrator.',
+        fnumber: fnumber
+      });
+    }
+
+    // Return user data (exclude sensitive information)
+    const userData = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      department: user.department,
+      role: user.role,
+      status: user.status,
+      is_active: user.is_active,
+      last_login: user.last_login,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+      is_fnumber_user: user.is_fnumber_user,
+      fnumber: user.fnumber
+    };
+
+    console.log(`[GET_USER_BY_FNUMBER] Successfully retrieved user data for F-number: ${fnumber}`);
+    
+    return res.status(200).json({
+      success: true,
+      message: 'User data retrieved successfully',
+      user: userData,
+      fnumber: fnumber
+    });
+
+  } catch (error) {
+    console.error('[GET_USER_BY_FNUMBER] Database error:', error.message);
+    
+    return res.status(500).json({
+      success: false,
+      error: `Server error while retrieving user data: ${error.message}`,
+      fnumber: fnumber
+    });
+  }
+};
+
+// Export the function
+module.exports = {
+  // ... your existing exports
+  getUserByFnumber
+};
+
+//verify2fa
+const verify2FA = async (req, res) => {
+  const { token, code, fnumber: requestFnumber } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Token is required' 
+    });
+  }
+
+  try {
+    console.log("[2FA] Starting 2FA verification process");
+    if (code) {
+      console.log("[2FA] Verifying with code:", code);
+    } else {
+      console.log("[2FA] Checking 2FA status without code");
+    }
+    
+    const authToken = await getAuthToken();
+    console.log('[2FA] Successfully obtained token for 2FA verification');
+    
+    console.log('[2FA] Sending verification request to LDAP service');
+    const verifyResponse = await axios.post(LDAP_VERIFY_2FA_URL, {
+      token,
+      code: code || ""
+    }, { 
+      headers: {
+        'Authorization': authToken,
+        'Content-Type': 'application/json'
+      },
+      httpsAgent: new require('https').Agent({ rejectUnauthorized: false }) 
+    });
+    
+    console.log('[2FA] Verify response status:', verifyResponse.status);
+    console.log('[2FA] Verify response data:', JSON.stringify(verifyResponse.data, null, 2));
+    
+    if (!verifyResponse.data || 
+        (verifyResponse.data.status_code !== '000' && 
+         verifyResponse.data.status_code !== '0' && 
+         verifyResponse.data.status_code !== 0)) {
+      console.error('[2FA] 2FA verification failed:', JSON.stringify(verifyResponse.data, null, 2));
+      
+      const fnumber = verifyResponse.data.fnumber || 
+                     (verifyResponse.data.data && verifyResponse.data.data.fnumber) ||
+                     requestFnumber;
+      
+      if (fnumber) {
+        await loginLogService.logFailedLogin(
+          fnumber, 
+          '2FA verification failed', 
+          req
+        );
+      }
+      
+      return res.status(401).json({ 
+        success: false, 
+        error: verifyResponse.data?.status_message || '2FA verification failed',
+        data: verifyResponse.data 
+      });
+    }
+    
+    console.log('[2FA] 2FA verification successful');
+    
+    const fnumber = verifyResponse.data.fnumber || 
+                   (verifyResponse.data.data && verifyResponse.data.data.fnumber) ||
+                   requestFnumber;
+                   
+    if (!fnumber) {
+      console.error('[2FA] No fnumber found in response or request');
+      return res.status(400).json({
+        success: false,
+        error: 'Unable to identify user. Missing F-number in response.',
+      });
+    }
+    
+    console.log(`[2FA] User identified as: ${fnumber}`);
+
+    // Call the new getUserByFnumber API internally
+    console.log(`[2FA] Calling getUserByFnumber API for: ${fnumber}`);
+    
+    try {
+      // Make internal API call to get user data
+      const userResponse = await axios.post(`${process.env.API_BASE_URL || 'http://localhost:5000'}/api/auth/get-user-by-fnumber`, {
+        fnumber: fnumber
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          // Include any necessary authentication headers if needed for internal calls
+        }
+      });
+
+      if (!userResponse.data || !userResponse.data.success) {
+        console.error(`[2FA] Failed to get user data from getUserByFnumber API:`, userResponse.data);
+        
+        await loginLogService.logFailedLogin(
+          fnumber, 
+          'User not found in system after 2FA verification', 
+          req
+        );
+        
+        return res.status(404).json({
+          success: false,
+          error: userResponse.data?.error || 'User not found in system. Please contact administrator.',
+        });
+      }
+
+      const user = userResponse.data.user;
+      console.log(`[2FA] User data retrieved successfully from API:`, {
+        id: user.id,
+        email: user.email,
+        fnumber: user.fnumber,
+        name: user.name,
+        role: user.role,
+        department: user.department
+      });
+
+    } catch (apiError) {
+      console.error(`[2FA] Error calling getUserByFnumber API:`, apiError.message);
+      
+      // If the internal API call fails, we still need to handle the error gracefully
+      await loginLogService.logFailedLogin(
+        fnumber, 
+        `Failed to retrieve user data: ${apiError.message}`, 
+        req
+      );
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve user information. Please try again.',
+      });
+    }
+    
+    // Generate session token using existing generateToken function
+    const sessionToken = generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role
+    });
+    
+    // Store session in user_sessions table
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await query(
+      'INSERT INTO user_sessions (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.id, sessionToken, expiresAt]
+    );
+    
+    // Log successful login
+    let logInfo = { sessionId: null };
+    try {
+      logInfo = await loginLogService.logSuccessfulLogin(user, req);
+      console.log('[2FA] Login logged successfully');
+    } catch (logError) {
+      console.error('[2FA] Failed to log successful login:', logError.message);
+    }
+    
+    // Update user's last login
+    try {
+      await query(
+        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+        [user.id]
+      );
+    } catch (updateError) {
+      console.error('[2FA] Failed to update last login time:', updateError.message);
+    }
+    
+    console.log(`[2FA] Session token generated for user: ${fnumber}`);
+    console.log('[2FA] 2FA verification process complete, returning success response');
+    
+    const userInfo = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      department: user.department,
+      role: user.role
+    };
+    
+    return res.status(200).json({
+      success: true,
+      message: '2FA verification successful - Login complete',
+      user: userInfo,
+      token: sessionToken,
+      sessionId: logInfo.sessionId,
+      verifyResponseData: verifyResponse.data 
+    });
+    
+  } catch (err) {
+    console.error('[2FA] 2FA verification error:', err.message);
+    
+    const fnumber = requestFnumber;
+    if (fnumber) {
+      await loginLogService.logFailedLogin(
+        fnumber, 
+        `2FA system error: ${err.message}`, 
+        req
+      );
+    }
+    
+    if (err.response) {
+      console.error('[2FA] Error response status:', err.response.status);
+      console.error('[2FA] Error response data:', JSON.stringify(err.response.data, null, 2));
+    }
+    
+    return res.status(500).json({ 
+      success: false, 
+      error: `Server error during 2FA verification: ${err.message}` 
+    });
+  }
+};
+
+//updated route
+const express = require('express');
+const router = express.Router();
+const {
+  loginUser,
+  logoutUser,
+  getUserProfile,
+  getAllUsers,
+  createUser,
+  updateUser,
+  updateUserPassword,
+  deleteUser,
+  getLoginLogs,
+  getSuspiciousActivities,
+  // LDAP APIs
+  authenticateLdapUser,
+  verify2FA,
+  track2FAStatus,
+  verifyFnumber,
+  // NEW API
+  getUserByFnumber
+} = require('../controllers/authController');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const LoginLogService = require('../controllers/LoginLogService');
+const { query } = require('../db');
+
+// Initialize login log service
+const db = { query };
+const loginLogService = new LoginLogService(db);
+
+// ==========================================
+// PUBLIC ROUTES (No authentication required)
+// ==========================================
+
+// Traditional login route (now handles both email and F-number login)
+router.post('/login', loginUser);
+
+// Registration route for testing
+router.post('/register', createUser);
+
+// ==========================================
+// PUBLIC LDAP/2FA ROUTES (Login flow)
+// ==========================================
+
+// LDAP Authentication - First step of LDAP login
+router.post('/ldap/authenticate', authenticateLdapUser);
+
+// 2FA Verification - Second step of LDAP login (public route)
+router.post('/verify-2fa', verify2FA);
+
+// Track 2FA Status - Check verification status (public route)
+router.post('/track-2fa-status', track2FAStatus);
+
+// NEW API: Get user by F-number (internal/public - used by verify2FA)
+// This can be public since it requires valid F-number and doesn't expose sensitive data
+router.post('/get-user-by-fnumber', getUserByFnumber);
+
+// ==========================================
+// PROTECTED ROUTES (Authentication required)
+// ==========================================
+
+// User session management
+router.post('/logout', authenticateToken, logoutUser);
+router.get('/profile', authenticateToken, getUserProfile);
+
+// ==========================================
+// ADMIN-ONLY ROUTES - User Management
+// ==========================================
+
+// User CRUD operations
+router.get('/users', authenticateToken, requireAdmin, getAllUsers);
+router.post('/users', authenticateToken, requireAdmin, createUser);
+router.put('/users/:id', authenticateToken, requireAdmin, updateUser);
+router.patch('/users/:id/password', authenticateToken, requireAdmin, updateUserPassword);
+router.delete('/users/:id', authenticateToken, requireAdmin, deleteUser);
+
+// ==========================================
+// ADMIN-ONLY ROUTES - LDAP Management
+// ==========================================
+
+// F-number verification (admin-only for user management screen)
+router.post('/ldap/verify-fnumber', authenticateToken, requireAdmin, verifyFnumber);
+
+// ==========================================
+// ADMIN-ONLY ROUTES - Login Monitoring
+// ==========================================
+
+// Login logs and monitoring
+router.get('/logs', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const {
+      user_id,
+      email,
+      login_status,
+      ip_address,
+      start_date,
+      end_date,
+      country,
+      device_type,
+      page = 1,
+      limit = 50
+    } = req.query;
+
+    const filters = {
+      user_id,
+      email,
+      login_status,
+      ip_address,
+      start_date,
+      end_date,
+      country,
+      device_type,
+      limit: parseInt(limit),
+      offset: (parseInt(page) - 1) * parseInt(limit)
+    };
+
+    // Remove undefined values
+    Object.keys(filters).forEach(key => {
+      if (filters[key] === undefined || filters[key] === '') {
+        delete filters[key];
+      }
+    });
+
+    const logs = await loginLogService.getLoginLogs(filters);
+    const stats = await loginLogService.getLoginStats({
+      start_date,
+      end_date
+    });
+
+    res.json({
+      success: true,
+      data: logs,
+      stats,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit)
+      }
+    });
+
+  } catch (error) {
+    console.error('Get login logs error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve login logs'
+    });
+  }
+});
+
+// Get login statistics (admin only)
+router.get('/logs/stats', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+    
+    const stats = await loginLogService.getLoginStats({
+      start_date,
+      end_date
+    });
+
+    res.json({
+      success: true,
+      data: stats
+    });
+
+  } catch (error) {
+    console.error('Get login stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve login statistics'
+    });
+  }
+});
+
+// Get suspicious activities (admin only)
+router.get('/logs/suspicious', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const activities = await loginLogService.getSuspiciousActivities();
+
+    res.json({
+      success: true,
+      data: activities
+    });
+
+  } catch (error) {
+    console.error('Get suspicious activities error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve suspicious activities'
+    });
+  }
+});
+
+// Export login logs to CSV (admin only)
+router.get('/logs/export', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const logs = await loginLogService.getLoginLogs(req.query);
+    
+    // Convert to CSV format
+    const csv = convertToCSV(logs);
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=login_logs_${new Date().toISOString().split('T')[0]}.csv`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Export error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Export failed'
+    });
+  }
+});
+
+// Helper function to convert JSON to CSV
+function convertToCSV(data) {
+  if (!data || data.length === 0) return '';
+  
+  const headers = [
+    'ID', 'User ID', 'Email', 'User Name', 'Username', 'Role', 'Department',
+    'Login Status', 'IP Address', 'User Agent', 'Login Time', 'Logout Time', 
+    'Session Duration', 'Failure Reason'
+  ];
+  
+  const csvRows = [headers.join(',')];
+  
+  data.forEach(row => {
+    const values = [
+      row.id,
+      row.user_id || '',
+      `"${row.email}"`,
+      `"${row.user_name || ''}"`,
+      `"${row.username || ''}"`,
+      `"${row.role || ''}"`,
+      `"${row.department || ''}"`,
+      row.login_status,
+      row.ip_address,
+      `"${row.user_agent || ''}"`,
+      row.login_timestamp,
+      row.logout_timestamp || '',
+      row.session_duration || '',
+      `"${row.failure_reason || ''}"`
+    ];
+    csvRows.push(values.join(','));
+  });
+  
+  return csvRows.join('\n');
+}
+
+module.exports = router;
+
+//auth context
+// Add this method to your AuthContext.js (inside the AuthProvider component)
+
+/**
+ * Get user data by F-number
+ * @param {string} fnumber - F-number to query (e.g., f8877557)
+ * @returns {Promise<Object>} User data response
+ */
+const getUserByFnumber = async (fnumber) => {
+  try {
+    if (!fnumber) {
+      throw new Error('F-number is required');
+    }
+
+    // Validate F-number format
+    if (!/^f\d{7}$/i.test(fnumber)) {
+      throw new Error('Invalid F-number format. Expected format: f1234567');
+    }
+
+    console.log('[AUTH_CONTEXT] Getting user data for F-number:', fnumber);
+
+    const response = await apiRequest('/api/auth/get-user-by-fnumber', {
+      method: 'POST',
+      body: JSON.stringify({ fnumber }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to get user data');
+    }
+
+    const data = await response.json();
+    console.log('[AUTH_CONTEXT] User data retrieved successfully:', data.success);
+    
+    return data;
+  } catch (error) {
+    console.error('Get user by F-number error:', error);
+    throw error;
+  }
+};
+
+// Also update the return statement in your AuthProvider to include the new method:
+
+return (
+  <AuthContext.Provider 
+    value={{
+      // Auth state
+      user,
+      token,
+      sessionId,
+      loading,
+      
+      // LDAP/2FA state
+      twoFASessionId,
+      pendingLdapAuth,
+      
+      // Auth methods
+      login,
+      logout,
+      isAdmin,
+      hasRole,
+      apiRequest,
+      isFnumber,
+      
+      // LDAP/2FA methods
+      authenticateLdap,
+      verify2FA,
+      track2FAStatus,
+      verifyFnumber,
+      getUserByFnumber, // NEW METHOD
+      
+      // Login Logs methods
+      getLoginLogs,
+      getLoginStats,
+      getSuspiciousActivities,
+      exportLoginLogs,
+      downloadLoginLogsCSV,
+      
+      // User Management methods
+      getAllUsers,
+      createUser,
+      updateUser,
+      updateUserPassword,
+      deleteUser,
+      
+      // Constants
+      ROLES,
+      DEPARTMENTS,
+    }}
+  >
+    {children}
+  </AuthContext.Provider>
+);
