@@ -4162,82 +4162,80 @@ try {
 }
 
 
+/* 1. BACKEND - Verify2FA Response Structure */
+// In your verify2FA backend function, add this logging right before the return statement:
 
-//log for victory
-[GET_USER_BY_FNUMBER] Query result count: 1
-[GET_USER_BY_FNUMBER] F-number user found in database: {
-  id: 'e80abd4c-038a-4c12-8d60-2ab67f7e4af6',
-  email: 'f8877557',
-  fnumber: 'f8877557',
-  name: 'Francis Kontoh',
-  role: 'DEPARTMENT_USER',
-  department: 'IT',
-  is_fnumber_user: true
-}
-[GET_USER_BY_FNUMBER] Successfully retrieved user data for F-number: F8877557
-POST /api/auth/get-user-by-fnumber 200 7.529 ms - 417
-[LDAP-AUTH] Authentication attempt for user: F8877557
-Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
-Token response status: 200
-[LDAP-AUTH] Successfully obtained token for authentication
-[LDAP-AUTH] Sending authentication request to LDAP service
-[LDAP-AUTH] Auth response status: 200
-[LDAP-AUTH] Authentication successful for user: F8877557
-[LDAP-AUTH] Returning token for 2FA verification
-POST /api/auth/ldap/authenticate 200 1803.139 ms - 318
-[TRACK] Checking 2FA verification status for token: 853204d4-d...f94bbc267d
-Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
-Token response status: 200
-[TRACK] Successfully obtained token for status tracking
-[TRACK] Sending status check to LDAP service
-[TRACK] Status response code: 200
-[TRACK] Status code: 000, Message: Successful authentication, Data status: Success
-POST /api/auth/track-2fa-status 200 1921.170 ms - 154
-[TRACK] Checking 2FA verification status for token: 853204d4-d...f94bbc267d
-Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
-[GET_USER_BY_FNUMBER] Querying user data for F-number: F8877557
-✓ Database client acquired from pool (PID: 31808)
-Executed query {
-  text: '\n      SELECT \n        id, \n        name, \n       ...',
-  duration: 3,
-  rows: 1,
-  attempt: undefined
-}
-[GET_USER_BY_FNUMBER] Query result count: 1
-[GET_USER_BY_FNUMBER] F-number user found in database: {
-  id: 'e80abd4c-038a-4c12-8d60-2ab67f7e4af6',
-  email: 'f8877557',
-  fnumber: 'f8877557',
-  name: 'Francis Kontoh',
-  role: 'DEPARTMENT_USER',
-  department: 'IT',
-  is_fnumber_user: true
-}
-[GET_USER_BY_FNUMBER] Successfully retrieved user data for F-number: F8877557
-POST /api/auth/get-user-by-fnumber 200 8.784 ms - 417
-Token response status: 200
-[TRACK] Successfully obtained token for status tracking
-[TRACK] Sending status check to LDAP service
-[TRACK] Status response code: 200
-[TRACK] Status code: 000, Message: Successful authentication, Data status: Success
-POST /api/auth/track-2fa-status 200 1836.926 ms - 154
-[GET_USER_BY_FNUMBER] Querying user data for F-number: F8877557
-✓ Database client acquired from pool (PID: 31808)
-Executed query {
-  text: '\n      SELECT \n        id, \n        name, \n       ...',
-  duration: 2,
-  rows: 1,
-  attempt: undefined
-}
-[GET_USER_BY_FNUMBER] Query result count: 1
-[GET_USER_BY_FNUMBER] F-number user found in database: {
-  id: 'e80abd4c-038a-4c12-8d60-2ab67f7e4af6',
-  email: 'f8877557',
-  fnumber: 'f8877557',
-  name: 'Francis Kontoh',
-  role: 'DEPARTMENT_USER',
-  department: 'IT',
-  is_fnumber_user: true
-}
-[GET_USER_BY_FNUMBER] Successfully retrieved user data for F-number: F8877557
-POST /api/auth/get-user-by-fnumber 200 8.362 ms - 417
+console.log('[2FA] Final response being sent to frontend:', {
+  success: true,
+  user: userInfo, // Make sure this contains all necessary fields
+  token: sessionToken,
+  sessionId: logInfo.sessionId
+});
+
+
+
+
+
+//auth veriffy2gfa
+const verify2FA = async (code, sessionId = null) => {
+  try {
+    const activeSessionId = sessionId || twoFASessionId;
+    
+    if (!activeSessionId) {
+      throw new Error('No active 2FA session found');
+    }
+
+    console.log('[AUTH_CONTEXT] Sending 2FA verification request with:', {
+      code: code ? 'PROVIDED' : 'MISSING',
+      sessionId: activeSessionId ? 'PROVIDED' : 'MISSING'
+    });
+
+    const response = await apiRequest('/api/auth/verify-2fa', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        code, 
+        token: activeSessionId, // Backend expects 'token' not 'twoFASessionId'
+        fnumber: pendingLdapAuth?.fnumber // Include f-number if available
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[AUTH_CONTEXT] 2FA verification failed:', errorData);
+      throw new Error(errorData.error || '2FA verification failed');
+    }
+
+    const data = await response.json();
+    console.log('[AUTH_CONTEXT] 2FA verification response:', data);
+
+    if (data.success) {
+      console.log('[AUTH_CONTEXT] Setting user data:', data.user);
+      console.log('[AUTH_CONTEXT] Setting token:', data.token ? 'PROVIDED' : 'MISSING');
+      console.log('[AUTH_CONTEXT] Setting sessionId:', data.sessionId ? 'PROVIDED' : 'MISSING');
+      
+      // Complete login process
+      setUser(data.user);
+      setToken(data.token);
+      setSessionId(data.sessionId);
+      
+      // Store in localStorage with additional logging
+      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('token', data.token);
+      if (data.sessionId) {
+        localStorage.setItem('sessionId', data.sessionId);
+      }
+      
+      console.log('[AUTH_CONTEXT] Data stored in localStorage');
+      console.log('[AUTH_CONTEXT] Current user state after setting:', user);
+      
+      // Clear 2FA state
+      setTwoFASessionId(null);
+      setPendingLdapAuth(null);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[AUTH_CONTEXT] 2FA verification error:', error);
+    throw error;
+  }
+};

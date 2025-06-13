@@ -230,7 +230,12 @@ const Dashboard = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const navigate = useNavigate();
   const { user, logout, ROLES,token,setUser,getUserByFnumber} = useAuth();
+
   
+    useEffect(() => {
+    console.log('[DASHBOARD] Auth state check:', { user, loading });
+  }, [user, loading]);
+
   console.log('[DASHBOARD] User data:', user);
   console.log('[DASHBOARD] Token', token ? 'Present' : 'Missing');
   console.log('[DASHBOARD] localstorage user:', localStorage.getItem('user'));
