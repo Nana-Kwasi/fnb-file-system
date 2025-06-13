@@ -412,7 +412,7 @@ export const AuthProvider = ({ children }) => {
    * @param {string} sessionId - 2FA session ID (optional, uses stored if not provided)
    * @returns {Promise<Object>} 2FA verification result
    */
-  const verify2FA = async (code, sessionId = null) => {
+    const verify2FA = async (code, sessionId = null) => {
     try {
       const activeSessionId = sessionId || twoFASessionId;
       

@@ -1249,3 +1249,73 @@ Token response status: 200
 POST /api/auth/track-2fa-status 200 2031.193 ms - 154
 
 
+
+
+//new qeury
+// Replace the user query section in your verify2FA function with this:
+
+console.log(`[2FA] User identified as: ${fnumber}`);
+
+// Query users table to get user info using f-number
+console.log(`[2FA] Querying users table for f-number: ${fnumber}`);
+
+// For F-number users, both email and fnumber columns contain the same f-number (format: f8877557)
+const userResult = await query(`
+  SELECT * FROM users 
+  WHERE is_fnumber_user = true 
+  AND is_active = true
+  AND (LOWER(email) = LOWER($1) OR LOWER(fnumber) = LOWER($1))
+`, [fnumber]);
+
+console.log(`[2FA] Query result count: ${userResult.rows.length}`);
+
+if (userResult.rows.length === 0) {
+  console.log(`[2FA] F-number user ${fnumber} not found in users table`);
+  
+  // Debug: Let's see what F-number users exist
+  try {
+    const debugResult = await query(`
+      SELECT id, email, fnumber, is_fnumber_user 
+      FROM users 
+      WHERE is_fnumber_user = true 
+      AND is_active = true 
+      AND (email ILIKE $1 OR fnumber ILIKE $1)
+      LIMIT 5
+    `, [`%${fnumber.replace('f', '')}%`]);
+    
+    console.log(`[2FA] Debug - F-number users found with similar patterns:`, debugResult.rows);
+  } catch (debugError) {
+    console.error(`[2FA] Debug query failed:`, debugError);
+  }
+  
+  await loginLogService.logFailedLogin(
+    fnumber, 
+    'F-number user not found in system after 2FA', 
+    req
+  );
+  
+  return res.status(404).json({
+    success: false,
+    error: 'User not found in system. Please contact administrator.',
+  });
+}
+
+const user = userResult.rows[0];
+console.log(`[2FA] F-number user found in database:`, {
+  id: user.id,
+  email: user.email,
+  fnumber: user.fnumber,
+  name: user.name,
+  role: user.role,
+  department: user.department,
+  is_fnumber_user: user.is_fnumber_user
+});
+
+// Verify this is indeed an F-number user
+if (!user.is_fnumber_user) {
+  console.error(`[2FA] User found but is_fnumber_user is false for ${fnumber}`);
+  return res.status(400).json({
+    success: false,
+    error: 'Invalid user type for F-number authentication.',
+  });
+}
