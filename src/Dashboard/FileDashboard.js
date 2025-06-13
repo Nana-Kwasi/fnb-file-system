@@ -229,7 +229,7 @@ const Dashboard = () => {
   const [viewingFile, setViewingFile] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const navigate = useNavigate();
-  const { user, logout, ROLES,token } = useAuth();
+  const { user, logout, ROLES,token,setUser,getUserByFnumber} = useAuth();
   
   console.log('[DASHBOARD] User data:', user);
   console.log('[DASHBOARD] Token', token ? 'Present' : 'Missing');

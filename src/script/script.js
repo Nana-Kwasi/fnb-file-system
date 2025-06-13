@@ -3807,6 +3807,8 @@
 
 
 //Verify2fa
+
+
 const verify2FA = async (req, res) => {
   const { token, code, fnumber: requestFnumber } = req.body;
 
@@ -4019,6 +4021,7 @@ const verify2FA = async (req, res) => {
 
 
 //login
+
 const startPolling2FAStatus = (sessionId) => {
     console.log('[LOGIN] Starting 2FA polling with sessionId:', sessionId ? 'Present' : 'Missing');
     console.log('[LOGIN] Actual sessionId value:', sessionId);
@@ -4158,3 +4161,83 @@ try {
   });
 }
 
+
+
+//log for victory
+[GET_USER_BY_FNUMBER] Query result count: 1
+[GET_USER_BY_FNUMBER] F-number user found in database: {
+  id: 'e80abd4c-038a-4c12-8d60-2ab67f7e4af6',
+  email: 'f8877557',
+  fnumber: 'f8877557',
+  name: 'Francis Kontoh',
+  role: 'DEPARTMENT_USER',
+  department: 'IT',
+  is_fnumber_user: true
+}
+[GET_USER_BY_FNUMBER] Successfully retrieved user data for F-number: F8877557
+POST /api/auth/get-user-by-fnumber 200 7.529 ms - 417
+[LDAP-AUTH] Authentication attempt for user: F8877557
+Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
+Token response status: 200
+[LDAP-AUTH] Successfully obtained token for authentication
+[LDAP-AUTH] Sending authentication request to LDAP service
+[LDAP-AUTH] Auth response status: 200
+[LDAP-AUTH] Authentication successful for user: F8877557
+[LDAP-AUTH] Returning token for 2FA verification
+POST /api/auth/ldap/authenticate 200 1803.139 ms - 318
+[TRACK] Checking 2FA verification status for token: 853204d4-d...f94bbc267d
+Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
+Token response status: 200
+[TRACK] Successfully obtained token for status tracking
+[TRACK] Sending status check to LDAP service
+[TRACK] Status response code: 200
+[TRACK] Status code: 000, Message: Successful authentication, Data status: Success
+POST /api/auth/track-2fa-status 200 1921.170 ms - 154
+[TRACK] Checking 2FA verification status for token: 853204d4-d...f94bbc267d
+Requesting token from: https://172.29.18.126/adproxyservice/prod/client/renew-token
+[GET_USER_BY_FNUMBER] Querying user data for F-number: F8877557
+✓ Database client acquired from pool (PID: 31808)
+Executed query {
+  text: '\n      SELECT \n        id, \n        name, \n       ...',
+  duration: 3,
+  rows: 1,
+  attempt: undefined
+}
+[GET_USER_BY_FNUMBER] Query result count: 1
+[GET_USER_BY_FNUMBER] F-number user found in database: {
+  id: 'e80abd4c-038a-4c12-8d60-2ab67f7e4af6',
+  email: 'f8877557',
+  fnumber: 'f8877557',
+  name: 'Francis Kontoh',
+  role: 'DEPARTMENT_USER',
+  department: 'IT',
+  is_fnumber_user: true
+}
+[GET_USER_BY_FNUMBER] Successfully retrieved user data for F-number: F8877557
+POST /api/auth/get-user-by-fnumber 200 8.784 ms - 417
+Token response status: 200
+[TRACK] Successfully obtained token for status tracking
+[TRACK] Sending status check to LDAP service
+[TRACK] Status response code: 200
+[TRACK] Status code: 000, Message: Successful authentication, Data status: Success
+POST /api/auth/track-2fa-status 200 1836.926 ms - 154
+[GET_USER_BY_FNUMBER] Querying user data for F-number: F8877557
+✓ Database client acquired from pool (PID: 31808)
+Executed query {
+  text: '\n      SELECT \n        id, \n        name, \n       ...',
+  duration: 2,
+  rows: 1,
+  attempt: undefined
+}
+[GET_USER_BY_FNUMBER] Query result count: 1
+[GET_USER_BY_FNUMBER] F-number user found in database: {
+  id: 'e80abd4c-038a-4c12-8d60-2ab67f7e4af6',
+  email: 'f8877557',
+  fnumber: 'f8877557',
+  name: 'Francis Kontoh',
+  role: 'DEPARTMENT_USER',
+  department: 'IT',
+  is_fnumber_user: true
+}
+[GET_USER_BY_FNUMBER] Successfully retrieved user data for F-number: F8877557
+POST /api/auth/get-user-by-fnumber 200 8.362 ms - 417

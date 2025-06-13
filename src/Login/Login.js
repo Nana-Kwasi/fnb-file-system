@@ -465,7 +465,7 @@ const Login = () => {
   const [pollingInterval, setPollingInterval] = useState(null);
   
   const navigate = useNavigate();
-  const { login, authenticateLdap, verify2FA, track2FAStatus, isFnumber } = useAuth();
+  const { login, authenticateLdap, verify2FA, track2FAStatus, isFnumber,setUser,getUserByFnumber } = useAuth();
 
   // Cleanup polling interval on component unmount
   useEffect(() => {
@@ -552,6 +552,80 @@ const Login = () => {
     }
   };
 
+  // const startPolling2FAStatus = (sessionId) => {
+  //   console.log('[LOGIN] Starting 2FA polling with sessionId:', sessionId ? 'Present' : 'Missing');
+  //   console.log('[LOGIN] Actual sessionId value:', sessionId);
+    
+  //   if (!sessionId) {
+  //     console.error('[LOGIN] No sessionId provided to startPolling2FAStatus');
+  //     setError("2FA session ID missing. Please try logging in again.");
+  //     return;
+  //   }
+  
+  //   const interval = setInterval(async () => {
+  //     try {
+  //       console.log('[LOGIN] Polling 2FA status with sessionId:', sessionId);
+        
+  //       const statusResult = await track2FAStatus(sessionId);
+        
+  //       console.log('[LOGIN] Status result:', {
+  //         success: statusResult.success,
+  //         verificationStatus: statusResult.verificationStatus,
+  //         statusCode: statusResult.statusCode,
+  //         statusMessage: statusResult.statusMessage
+  //       });
+        
+  //       if (statusResult.success) {
+  //         if (statusResult.verificationStatus === "success") {
+  //           // 2FA was accepted on phone
+  //           console.log('[LOGIN] 2FA verified successfully');
+  //           clearInterval(interval);
+  //           setPollingInterval(null);
+  //           setShowTwoFAModal(false);
+  //           setLoading(true);
+  //           navigate("/dashboard");
+  //         } else if (statusResult.verificationStatus === "failed") {
+  //           // 2FA was rejected
+  //           console.log('[LOGIN] 2FA was rejected');
+  //           clearInterval(interval);
+  //           setPollingInterval(null);
+  //           setShowTwoFAModal(false);
+  //           setError("2FA verification was declined. Please try again.");
+  //         }
+  //         // If pending, continue polling
+  //       }
+  //     } catch (err) {
+  //       console.error('[LOGIN] 2FA status polling error:', err);
+        
+  //       // Handle session expiry or other fatal errors
+  //       if (err.message.includes('session') || err.message.includes('expired')) {
+  //         clearInterval(interval);
+  //         setPollingInterval(null);
+  //         setShowTwoFAModal(false);
+  //         setError("2FA session expired. Please login again.");
+  //       } else if (err.message.includes('2FA session ID is required')) {
+  //         // Handle missing session ID error
+  //         clearInterval(interval);
+  //         setPollingInterval(null);
+  //         setShowTwoFAModal(false);
+  //         setError("2FA session error. Please login again.");
+  //       }
+  //     }
+  //   }, 2000);
+  
+  //   setPollingInterval(interval);
+  
+  //   // Auto-stop polling after 5 minutes
+  //   setTimeout(() => {
+  //     console.log('[LOGIN] 2FA polling timeout reached');
+  //     clearInterval(interval);
+  //     setPollingInterval(null);
+  //     if (showTwoFAModal) {
+  //       setShowTwoFAModal(false);
+  //       setError("2FA verification timed out. Please try again.");
+  //     }
+  //   }, 300000);
+  // };
   const startPolling2FAStatus = (sessionId) => {
     console.log('[LOGIN] Starting 2FA polling with sessionId:', sessionId ? 'Present' : 'Missing');
     console.log('[LOGIN] Actual sessionId value:', sessionId);
@@ -583,6 +657,26 @@ const Login = () => {
             setPollingInterval(null);
             setShowTwoFAModal(false);
             setLoading(true);
+            
+            // **ENHANCEMENT: Fetch user data after 2FA success**
+            try {
+              if (statusResult.fnumber) {
+                console.log('[LOGIN] Fetching user data for fnumber:', statusResult.fnumber);
+                const userData = await getUserByFnumber(statusResult.fnumber);
+                
+                if (userData.success) {
+                  console.log('[LOGIN] User data fetched successfully:', userData.user);
+                  // Update auth context with complete user data
+                  setUser(userData.user);
+                } else {
+                  console.warn('[LOGIN] Failed to fetch user data:', userData.error);
+                }
+              }
+            } catch (userFetchError) {
+              console.error('[LOGIN] Error fetching user data:', userFetchError);
+              // Don't block login if user data fetch fails
+            }
+            
             navigate("/dashboard");
           } else if (statusResult.verificationStatus === "failed") {
             // 2FA was rejected
@@ -626,7 +720,6 @@ const Login = () => {
       }
     }, 300000);
   };
-
   const handleManualCodeSubmit = async (e) => {
     e.preventDefault();
     setError("");
