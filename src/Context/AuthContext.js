@@ -405,7 +405,39 @@ export const AuthProvider = ({ children }) => {
       throw error;
     }
   };
-
+  const getUserByFnumber = async (fnumber) => {
+    try {
+      if (!fnumber) {
+        throw new Error('F-number is required');
+      }
+  
+      // Validate F-number format
+      if (!/^f\d{7}$/i.test(fnumber)) {
+        throw new Error('Invalid F-number format. Expected format: f1234567');
+      }
+  
+      console.log('[AUTH_CONTEXT] Getting user data for F-number:', fnumber);
+  
+      const response = await apiRequest('/api/auth/get-user-by-fnumber', {
+        method: 'POST',
+        body: JSON.stringify({ fnumber }),
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get user data');
+      }
+  
+      const data = await response.json();
+      console.log('[AUTH_CONTEXT] User data retrieved successfully:', data.success);
+      
+      return data;
+    } catch (error) {
+      console.error('Get user by F-number error:', error);
+      throw error;
+    }
+  };
+  
   /**
    * Verify 2FA code - Second step for LDAP login
    * @param {string} code - 2FA verification code
@@ -955,6 +987,8 @@ const track2FAStatus = async (sessionId) => {
         verify2FA,
         track2FAStatus,
         verifyFnumber,
+        getUserByFnumber, // NEW METHOD
+
         
         // Login Logs methods
         getLoginLogs,

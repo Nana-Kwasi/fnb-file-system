@@ -229,7 +229,14 @@ const Dashboard = () => {
   const [viewingFile, setViewingFile] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const navigate = useNavigate();
-  const { user, logout, ROLES } = useAuth();
+  const { user, logout, ROLES,token } = useAuth();
+  
+  console.log('[DASHBOARD] User data:', user);
+  console.log('[DASHBOARD] Token', token ? 'Present' : 'Missing');
+  console.log('[DASHBOARD] localstorage user:', localStorage.getItem('user'));
+  console.log('[DASHBOARD] ROLE:', ROLES);
+
+  
   const { 
     invoices, 
     loading,
