@@ -5845,9 +5845,10 @@ const startPolling2FAStatus = (sessionId) => {
   }, 300000);
 };
 
-
+//used below functions
 
 ////nn
+
 const verify2FA = async (code, sessionId = null) => {
   try {
     const activeSessionId = sessionId || twoFASessionId;
@@ -5964,6 +5965,7 @@ const verify2FA = async (code, sessionId = null) => {
 };
 
 //www
+
 const getUserByFnumber = async (fnumber) => {
   try {
     if (!fnumber) {
@@ -6010,6 +6012,7 @@ const getUserByFnumber = async (fnumber) => {
 
 
 //fff
+
 const startPolling2FAStatus = (sessionId) => {
   console.log('[LOGIN] Starting 2FA polling with sessionId:', sessionId ? 'Present' : 'Missing');
   
@@ -6099,3 +6102,85 @@ const startPolling2FAStatus = (sessionId) => {
     }
   }, 300000);
 };
+
+
+
+//ahhh
+[AUTH_CONTEXT] Sending 2FA verification request with: {code: 'MISSING', sessionId: 'PROVIDED'}code: "MISSING"sessionId: "PROVIDED"[[Prototype]]: Object
+AuthContext.js:299 
+            
+            
+            POST http://localhost:5000/api/auth/verify-2fa 500 (Internal Server Error)
+apiRequest @ AuthContext.js:299
+verify2FA @ AuthContext.js:474
+(anonymous) @ Login.js:586
+setInterval
+startPolling2FAStatus @ Login.js:562
+handleSubmit @ Login.js:529
+await in handleSubmit
+callCallback @ react-dom.development.js:4164
+invokeGuardedCallbackDev @ react-dom.development.js:4213
+invokeGuardedCallback @ react-dom.development.js:4277
+invokeGuardedCallbackAndCatchFirstError @ react-dom.development.js:4291
+executeDispatch @ react-dom.development.js:9041
+processDispatchQueueItemsInOrder @ react-dom.development.js:9073
+processDispatchQueue @ react-dom.development.js:9086
+dispatchEventsForPlugins @ react-dom.development.js:9097
+(anonymous) @ react-dom.development.js:9288
+batchedUpdates$1 @ react-dom.development.js:26140
+batchedUpdates @ react-dom.development.js:3991
+dispatchEventForPluginEventSystem @ react-dom.development.js:9287
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ react-dom.development.js:6465
+dispatchEvent @ react-dom.development.js:6457
+dispatchDiscreteEvent @ react-dom.development.js:6430
+AuthContext.js:485  [AUTH_CONTEXT] 2FA verification failed: {success: false, error: 'Failed to retrieve user information. Please try again.'}error: "Failed to retrieve user information. Please try again."success: false[[Prototype]]: Object
+verify2FA @ AuthContext.js:485
+await in verify2FA
+(anonymous) @ Login.js:586
+setInterval
+startPolling2FAStatus @ Login.js:562
+handleSubmit @ Login.js:529
+await in handleSubmit
+callCallback @ react-dom.development.js:4164
+invokeGuardedCallbackDev @ react-dom.development.js:4213
+invokeGuardedCallback @ react-dom.development.js:4277
+invokeGuardedCallbackAndCatchFirstError @ react-dom.development.js:4291
+executeDispatch @ react-dom.development.js:9041
+processDispatchQueueItemsInOrder @ react-dom.development.js:9073
+processDispatchQueue @ react-dom.development.js:9086
+dispatchEventsForPlugins @ react-dom.development.js:9097
+(anonymous) @ react-dom.development.js:9288
+batchedUpdates$1 @ react-dom.development.js:26140
+batchedUpdates @ react-dom.development.js:3991
+dispatchEventForPluginEventSystem @ react-dom.development.js:9287
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ react-dom.development.js:6465
+dispatchEvent @ react-dom.development.js:6457
+dispatchDiscreteEvent @ react-dom.development.js:6430
+AuthContext.js:571  [AUTH_CONTEXT] 2FA verification error: Error: Failed to retrieve user information. Please try again.
+    at verify2FA (AuthContext.js:486:1)
+    at async Login.js:586:1
+verify2FA @ AuthContext.js:571
+await in verify2FA
+(anonymous) @ Login.js:586
+setInterval
+startPolling2FAStatus @ Login.js:562
+handleSubmit @ Login.js:529
+await in handleSubmit
+callCallback @ react-dom.development.js:4164
+invokeGuardedCallbackDev @ react-dom.development.js:4213
+invokeGuardedCallback @ react-dom.development.js:4277
+invokeGuardedCallbackAndCatchFirstError @ react-dom.development.js:4291
+executeDispatch @ react-dom.development.js:9041
+processDispatchQueueItemsInOrder @ react-dom.development.js:9073
+processDispatchQueue @ react-dom.development.js:9086
+dispatchEventsForPlugins @ react-dom.development.js:9097
+(anonymous) @ react-dom.development.js:9288
+batchedUpdates$1 @ react-dom.development.js:26140
+batchedUpdates @ react-dom.development.js:3991
+dispatchEventForPluginEventSystem @ react-dom.development.js:9287
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ react-dom.development.js:6465
+dispatchEvent @ react-dom.development.js:6457
+dispatchDiscreteEvent @ react-dom.development.js:6430
+Login.js:596  [LOGIN] Error completing 2FA verification: Error: Failed to retrieve user information. Please try again.
+    at verify2FA (AuthContext.js:486:1)
+    at async Login.js:586:1

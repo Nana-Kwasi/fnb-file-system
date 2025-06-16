@@ -552,7 +552,6 @@ const Login = () => {
 
   const startPolling2FAStatus = (sessionId) => {
     console.log('[LOGIN] Starting 2FA polling with sessionId:', sessionId ? 'Present' : 'Missing');
-    console.log('[LOGIN] Actual sessionId value:', sessionId);
     
     if (!sessionId) {
       console.error('[LOGIN] No sessionId provided to startPolling2FAStatus');
@@ -575,53 +574,29 @@ const Login = () => {
         
         if (statusResult.success) {
           if (statusResult.verificationStatus === "success") {
-            // 2FA was accepted on phone - NOW COMPLETE THE LOGIN PROCESS
-            console.log('[LOGIN] 2FA verified successfully');
+            // 2FA was accepted on phone
+            console.log('[LOGIN] 2FA verified successfully, calling verify2FA...');
             clearInterval(interval);
             setPollingInterval(null);
             setShowTwoFAModal(false);
             setLoading(true);
             
             try {
-              // **CRITICAL FIX: Call verify2FA to complete login and get token**
-              console.log('[LOGIN] Completing login process via verify2FA...');
-              const verifyResult = await verify2FA('MOBILE_APPROVED', sessionId);
+              // **FIX: Call verify2FA with empty code since it was already verified**
+              const verifyResult = await verify2FA('', sessionId);
               
               if (verifyResult.success) {
-                console.log('[LOGIN] Login completed successfully with token');
-                
-                // Additional user data fetch if needed (optional since verify2FA should handle this)
-                if (statusResult.fnumber && !verifyResult.user?.department) {
-                  try {
-                    console.log('[LOGIN] Fetching additional user data for fnumber:', statusResult.fnumber);
-                    const userData = await getUserByFnumber(statusResult.fnumber);
-                    
-                    if (userData.success && userData.user) {
-                      console.log('[LOGIN] Additional user data fetched successfully');
-                      // Update with more complete user data if needed
-                      setUser({
-                        ...verifyResult.user,
-                        ...userData.user
-                      });
-                    }
-                  } catch (userFetchError) {
-                    console.warn('[LOGIN] Additional user data fetch failed:', userFetchError);
-                    // Don't block login if additional fetch fails
-                  }
-                }
-                
+                console.log('[LOGIN] Full authentication completed successfully');
+                setLoading(false);
                 navigate("/dashboard");
               } else {
-                console.error('[LOGIN] verify2FA failed:', verifyResult);
-                setError("Login completion failed. Please try again.");
+                throw new Error('Failed to complete authentication');
               }
             } catch (verifyError) {
-              console.error('[LOGIN] Error completing login:', verifyError);
-              setError("Login completion failed. Please try again.");
-            } finally {
+              console.error('[LOGIN] Error completing 2FA verification:', verifyError);
               setLoading(false);
+              setError("Authentication completed but failed to load profile. Please try again.");
             }
-            
           } else if (statusResult.verificationStatus === "failed") {
             // 2FA was rejected
             console.log('[LOGIN] 2FA was rejected');
@@ -629,7 +604,6 @@ const Login = () => {
             setPollingInterval(null);
             setShowTwoFAModal(false);
             setError("2FA verification was declined. Please try again.");
-            setLoading(false);
           }
           // If pending, continue polling
         }
@@ -642,14 +616,12 @@ const Login = () => {
           setPollingInterval(null);
           setShowTwoFAModal(false);
           setError("2FA session expired. Please login again.");
-          setLoading(false);
         } else if (err.message.includes('2FA session ID is required')) {
           // Handle missing session ID error
           clearInterval(interval);
           setPollingInterval(null);
           setShowTwoFAModal(false);
           setError("2FA session error. Please login again.");
-          setLoading(false);
         }
       }
     }, 2000);
@@ -664,7 +636,6 @@ const Login = () => {
       if (showTwoFAModal) {
         setShowTwoFAModal(false);
         setError("2FA verification timed out. Please try again.");
-        setLoading(false);
       }
     }, 300000);
   };
