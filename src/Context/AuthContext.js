@@ -978,6 +978,7 @@ const track2FAStatus = async (sessionId) => {
     );
   }
 
+
   return (
     <AuthContext.Provider 
       value={{
@@ -998,14 +999,14 @@ const track2FAStatus = async (sessionId) => {
         hasRole,
         apiRequest,
         isFnumber,
+        setUser, // ADD THIS LINE - Make setUser available to components
         
         // LDAP/2FA methods
         authenticateLdap,
         verify2FA,
         track2FAStatus,
         verifyFnumber,
-        getUserByFnumber, // NEW METHOD
-
+        getUserByFnumber,
         
         // Login Logs methods
         getLoginLogs,
@@ -1030,7 +1031,6 @@ const track2FAStatus = async (sessionId) => {
     </AuthContext.Provider>
   );
 };
-
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

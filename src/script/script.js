@@ -5141,6 +5141,8 @@ POST /api/auth/get-user-by-fnumber 200 5.824 ms - 417
 
 //fixed
 // AuthContext.js - Add setUser to the provider value
+
+
 return (
   <AuthContext.Provider 
     value={{
@@ -5192,3 +5194,37 @@ return (
     {children}
   </AuthContext.Provider>
 );
+
+
+
+
+
+
+//new logs
+[DASHBOARD] Token Missing
+FileDashboard.js:242 [DASHBOARD] localstorage user: null
+FileDashboard.js:243 [DASHBOARD] ROLE: {HEAD_OF_FINANCE: 'HEAD_OF_FINANCE', CFO: 'CFO', CEO: 'CEO', PC: 'PC', EXCO: 'EXCO', …}
+InvoiceContext.js:40 
+            
+            
+ GET http://localhost:5000/api/invoices 401 (Unauthorized)
+
+InvoiceContext.js:275  Error loading invoices: Error: Failed to fetch invoices
+    at Object.getAllInvoices (InvoiceContext.js:43:1)
+    at async loadInvoices (InvoiceContext.js:271:1)
+loadInvoices @ InvoiceContext.js:275
+await in loadInvoices
+FileDashboard.js:240 [DASHBOARD] User data: {id: 'e80abd4c-038a-4c12-8d60-2ab67f7e4af6', name: 'Francis Kontoh', email: 'f8877557', username: 'admin', department: 'IT', …}
+FileDashboard.js:241 [DASHBOARD] Token Missing
+FileDashboard.js:242 [DASHBOARD] localstorage user: null
+FileDashboard.js:240 [DASHBOARD] User data: {id: 'e80abd4c-038a-4c12-8d60-2ab67f7e4af6', name: 'Francis Kontoh', email: 'f8877557', username: 'admin', department: 'IT', …}
+FileDashboard.js:241 [DASHBOARD] Token Missing
+FileDashboard.js:242 [DASHBOARD] localstorage user: null
+FileDashboard.js:241 [DASHBOARD] Token Missing
+FileDashboard.js:242 [DASHBOARD] localstorage user: null
+
+//new backend logs
+[GET_USER_BY_FNUMBER] Successfully retrieved user data for F-number: F8877557
+POST /api/auth/get-user-by-fnumber 200 3.675 ms - 417
+JWT verification error: jwt malformed
+GET /api/invoices 401 1.135 ms - 43
