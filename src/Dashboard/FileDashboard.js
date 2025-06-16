@@ -222,20 +222,21 @@ import FileViewer from '../Fileviewer/Fileviewer';
 import UsersManagement from '../Users/Users';
 import Logs from '../Logs/logs';
 
+
 const Dashboard = () => {
-  const [currentScreen, setCurrentScreen] = useState('dashboard');
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedFiles, setSelectedFiles] = useState(new Set());
-  const [viewingFile, setViewingFile] = useState(null);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const navigate = useNavigate();
-  const { user, logout, ROLES,token,setUser,getUserByFnumber} = useAuth();
-
+    const [currentScreen, setCurrentScreen] = useState('dashboard');
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [selectedFiles, setSelectedFiles] = useState(new Set());
+    const [viewingFile, setViewingFile] = useState(null);
+    const [showViewModal, setShowViewModal] = useState(false);
   
-    useEffect(() => {
-    console.log('[DASHBOARD] Auth state check:', { user, loading });
-  }, [user, loading]);
-
+  
+  
+    const navigate = useNavigate();
+    const { user, logout, ROLES, token, setUser, getUserByFnumber } = useAuth();
+  
+  
+   
   console.log('[DASHBOARD] User data:', user);
   console.log('[DASHBOARD] Token', token ? 'Present' : 'Missing');
   console.log('[DASHBOARD] localstorage user:', localStorage.getItem('user'));

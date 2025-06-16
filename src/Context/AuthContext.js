@@ -444,52 +444,69 @@ export const AuthProvider = ({ children }) => {
    * @param {string} sessionId - 2FA session ID (optional, uses stored if not provided)
    * @returns {Promise<Object>} 2FA verification result
    */
-    const verify2FA = async (code, sessionId = null) => {
-    try {
-      const activeSessionId = sessionId || twoFASessionId;
-      
-      if (!activeSessionId) {
-        throw new Error('No active 2FA session found');
-      }
-
-      const response = await apiRequest('/api/auth/verify-2fa', {
-        method: 'POST',
-        body: JSON.stringify({ 
-          code, 
-          twoFASessionId: activeSessionId 
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || '2FA verification failed');
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Complete login process
-        setUser(data.user);
-        setToken(data.token);
-        setSessionId(data.sessionId);
-        
-        // Store in localStorage
-        localStorage.setItem('user', JSON.stringify(data.user));
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('sessionId', data.sessionId);
-        
-        // Clear 2FA state
-        setTwoFASessionId(null);
-        setPendingLdapAuth(null);
-      }
-
-      return data;
-    } catch (error) {
-      console.error('2FA verification error:', error);
-      throw error;
+ 
+const verify2FA = async (code, sessionId = null) => {
+  try {
+    const activeSessionId = sessionId || twoFASessionId;
+    
+    if (!activeSessionId) {
+      throw new Error('No active 2FA session found');
     }
-  };
 
+    console.log('[AUTH_CONTEXT] Sending 2FA verification request with:', {
+      code: code ? 'PROVIDED' : 'MISSING',
+      sessionId: activeSessionId ? 'PROVIDED' : 'MISSING'
+    });
+
+    const response = await apiRequest('/api/auth/verify-2fa', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        code, 
+        token: activeSessionId, // Backend expects 'token' not 'twoFASessionId'
+        fnumber: pendingLdapAuth?.fnumber // Include f-number if available
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[AUTH_CONTEXT] 2FA verification failed:', errorData);
+      throw new Error(errorData.error || '2FA verification failed');
+    }
+
+    const data = await response.json();
+    console.log('[AUTH_CONTEXT] 2FA verification response:', data);
+
+    if (data.success) {
+      console.log('[AUTH_CONTEXT] Setting user data:', data.user);
+      console.log('[AUTH_CONTEXT] Setting token:', data.token ? 'PROVIDED' : 'MISSING');
+      console.log('[AUTH_CONTEXT] Setting sessionId:', data.sessionId ? 'PROVIDED' : 'MISSING');
+      
+      // Complete login process
+      setUser(data.user);
+      setToken(data.token);
+      setSessionId(data.sessionId);
+      
+      // Store in localStorage with additional logging
+      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('token', data.token);
+      if (data.sessionId) {
+        localStorage.setItem('sessionId', data.sessionId);
+      }
+      
+      console.log('[AUTH_CONTEXT] Data stored in localStorage');
+      console.log('[AUTH_CONTEXT] Current user state after setting:', user);
+      
+      // Clear 2FA state
+      setTwoFASessionId(null);
+      setPendingLdapAuth(null);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[AUTH_CONTEXT] 2FA verification error:', error);
+    throw error;
+  }
+};
   /**
  * Track 2FA verification status
  * @param {string} sessionId - 2FA session ID (required)

@@ -4176,66 +4176,964 @@ console.log('[2FA] Final response being sent to frontend:', {
 
 
 
-//auth veriffy2gfa
-const verify2FA = async (code, sessionId = null) => {
+//logg
+
+{id: 'e80abd4c-038a-4c12-8d60-2ab67f7e4af6', name: 'Francis Kontoh', email: 'f8877557', username: 'admin', department: 'IT', …}
+created_at
+: 
+"2025-06-12T11:10:16.893Z"
+department
+: 
+"IT"
+email
+: 
+"f8877557"
+fnumber
+: 
+"f8877557"
+id
+: 
+"e80abd4c-038a-4c12-8d60-2ab67f7e4af6"
+is_active
+: 
+true
+is_fnumber_user
+: 
+true
+last_login
+: 
+null
+name
+: 
+"Francis Kontoh"
+role
+: 
+"DEPARTMENT_USER"
+status
+: 
+"active"
+updated_at
+: 
+"2025-06-12T11:10:16.893Z"
+username
+: 
+"admin"
+
+
+
+//another logg
+Login.js:676 
+ [LOGIN] Error fetching user data: TypeError: setUser is not a function
+    at Login.js:670:1
+(anonymous)	@	Login.js:676
+setInterval		
+startPolling2FAStatus	@	Login.js:639
+handleSubmit	@	Login.js:531
+FileDashboard.js:240 [DASHBOARD] User data: null
+FileDashboard.js:241 [DASHBOARD] Token Missing
+FileDashboard.js:242 [DASHBOARD] localstorage user: null
+FileDashboard.js:243 [DASHBOARD] ROLE: 
+{HEAD_OF_FINANCE: 'HEAD_OF_FINANCE', CFO: 'CFO', CEO: 'CEO', PC: 'PC', EXCO: 'EXCO', …}
+FileDashboard.js:240 [DASHBOARD] User data: null
+FileDashboard.js:241 [DASHBOARD] Token Missing
+FileDashboard.js:242 [DASHBOARD] localstorage user: null
+FileDashboard.js:243 [DASHBOARD] ROLE: 
+
+
+//auth controller
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const axios = require('axios');
+const { query, getClient } = require('../db');
+const { generateToken, isAdmin } = require('../middleware/auth'); // Import isAdmin from middleware
+const LoginLogService = require('../controllers/LoginLogService');
+
+const SALT_ROUNDS = 10;
+const VALID_ROLES = [
+  'HEAD_OF_FINANCE', 'CFO', 'CEO', 'PC', 'EXCO', 'TAX_MANAGER',
+  'COST_CONTROL', 'APPROVAL_USER_1', 'APPROVAL_USER_2', 
+  'PAYMENT_USER', 'DEPARTMENT_USER'
+];
+
+const VALID_DEPARTMENTS = [
+  'FINANCE', 'IT', 'HR', 'OPERATIONS', 'GLOBALMARKET', 
+  'MARKETTING', 'LEGAL', 'COMPLIANCE', 'EXCOBERS', 'TAX', 'COST_CONTROL'
+];
+
+// LDAP Configuration
+const JWT_SECRET = 'your-secret-key-should-be-in-env-file';
+const LDAP_AUTH_URL = "https://172.29.18.126/adproxyservice/prod/ldap/authenticate";
+const LDAP_VERIFY_2FA_URL = "https://172.29.18.126/adproxyservice/prod/ldap/verify2fa";
+const TOKEN_URL = 'https://172.29.18.126/adproxyservice/prod/client/renew-token';
+const CLIENT_ID = "f1fb6909-d015-47e1-ad61-93708e570396";
+
+// Initialize login log service
+const db = { query }; // Wrap query function for service compatibility
+const loginLogService = new LoginLogService(db);
+
+const getAuthToken = async () => {
   try {
-    const activeSessionId = sessionId || twoFASessionId;
+    console.log('Requesting token from:', TOKEN_URL);
     
-    if (!activeSessionId) {
-      throw new Error('No active 2FA session found');
-    }
-
-    console.log('[AUTH_CONTEXT] Sending 2FA verification request with:', {
-      code: code ? 'PROVIDED' : 'MISSING',
-      sessionId: activeSessionId ? 'PROVIDED' : 'MISSING'
+    const tokenResponse = await axios.post(TOKEN_URL, {
+      clientId: CLIENT_ID,
+      duration: 300
+    }, { 
+      httpsAgent: new require('https').Agent({ rejectUnauthorized: false }) 
     });
 
-    const response = await apiRequest('/api/auth/verify-2fa', {
-      method: 'POST',
-      body: JSON.stringify({ 
-        code, 
-        token: activeSessionId, // Backend expects 'token' not 'twoFASessionId'
-        fnumber: pendingLdapAuth?.fnumber // Include f-number if available
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('[AUTH_CONTEXT] 2FA verification failed:', errorData);
-      throw new Error(errorData.error || '2FA verification failed');
+    console.log('Token response status:', tokenResponse.status);
+    
+    if (!tokenResponse.data || tokenResponse.data.statusCode !== 0 || !tokenResponse.data.data || !tokenResponse.data.data.token) {
+      console.error('Invalid token response:', tokenResponse.data);
+      throw new Error(`Failed to obtain authorization token: ${
+        tokenResponse.data && tokenResponse.data.statusMessage 
+          ? tokenResponse.data.statusMessage 
+          : 'Unknown error'
+      }`);
     }
 
-    const data = await response.json();
-    console.log('[AUTH_CONTEXT] 2FA verification response:', data);
-
-    if (data.success) {
-      console.log('[AUTH_CONTEXT] Setting user data:', data.user);
-      console.log('[AUTH_CONTEXT] Setting token:', data.token ? 'PROVIDED' : 'MISSING');
-      console.log('[AUTH_CONTEXT] Setting sessionId:', data.sessionId ? 'PROVIDED' : 'MISSING');
-      
-      // Complete login process
-      setUser(data.user);
-      setToken(data.token);
-      setSessionId(data.sessionId);
-      
-      // Store in localStorage with additional logging
-      localStorage.setItem('user', JSON.stringify(data.user));
-      localStorage.setItem('token', data.token);
-      if (data.sessionId) {
-        localStorage.setItem('sessionId', data.sessionId);
-      }
-      
-      console.log('[AUTH_CONTEXT] Data stored in localStorage');
-      console.log('[AUTH_CONTEXT] Current user state after setting:', user);
-      
-      // Clear 2FA state
-      setTwoFASessionId(null);
-      setPendingLdapAuth(null);
+    const rawToken = tokenResponse.data.data.token;
+    return `Bearer ${rawToken}`;
+  } catch (err) {
+    console.error('Error getting auth token:', err.message);
+    if (err.response) {
+      console.error('Error response status:', err.response.status);
+      console.error('Error response data:', JSON.stringify(err.response.data, null, 2));
     }
-
-    return data;
-  } catch (error) {
-    console.error('[AUTH_CONTEXT] 2FA verification error:', error);
-    throw error;
+    throw err;
   }
 };
+
+// Helper function to detect if login is f-number format
+const isFnumberFormat = (identifier) => {
+  return /^f\d+$/i.test(identifier);
+};
+
+// NEW: Verify F-number function from LDAP system
+const verifyFnumber = async (req, res) => {
+  const { fnumber } = req.body;
+
+  if (!fnumber) {
+    return res.status(400).json({ error: 'F-number is required' });
+  }
+
+  try {
+    const createTokenUrl = TOKEN_URL;
+    console.log('Requesting token from:', createTokenUrl);
+    
+    const tokenResponse = await axios.post(createTokenUrl, {
+      clientId: CLIENT_ID,
+      duration: 300
+    }, { 
+      httpsAgent: new require('https').Agent({ rejectUnauthorized: false }) 
+    });
+
+    console.log('Token response status:', tokenResponse.status);
+    console.log('Token response data:', JSON.stringify(tokenResponse.data, null, 2));
+
+    if (!tokenResponse.data || tokenResponse.data.statusCode !== 0 || !tokenResponse.data.data || !tokenResponse.data.data.token) {
+      console.error('Invalid token response:', tokenResponse.data);
+      return res.status(400).json({ 
+        isValid: false, 
+        error: `Failed to obtain authorization token: ${
+          tokenResponse.data && tokenResponse.data.statusMessage 
+            ? tokenResponse.data.statusMessage 
+            : 'Unknown error'
+        }` 
+      });
+    }
+
+    const rawToken = tokenResponse.data.data.token;
+    const authToken = `Bearer ${rawToken}`;
+    console.log('Successfully obtained token');
+
+    const searchApiUrl = 'https://172.29.18.126/adproxyservice/prod/ldap/search';
+    console.log('Searching for user at:', searchApiUrl);
+    
+    const requestConfig = {
+      url: searchApiUrl,
+      method: 'post',
+      data: { fnumber: fnumber },
+      headers: {
+        'Authorization': authToken,
+        'Content-Type': 'application/json'
+      },
+      httpsAgent: new require('https').Agent({ rejectUnauthorized: false })
+    };
+    
+    console.log('Request configuration:', JSON.stringify({
+      url: requestConfig.url,
+      method: requestConfig.method,
+      headers: requestConfig.headers,
+      data: requestConfig.data
+    }, null, 2));
+    
+    const response = await axios(requestConfig);
+    
+    console.log('Search response status:', response.status);
+    console.log('Search response data:', JSON.stringify(response.data, null, 2));
+
+    if (response.data.statusCode !== 0) {
+      return res.status(400).json({ 
+        isValid: false, 
+        error: `Search API error: ${response.data.statusMessage}` 
+      });
+    }
+
+    return res.status(200).json({
+      isValid: true,
+      userData: {
+        name: response.data.data.name,
+        email: response.data.data.email,
+        title: response.data.data.title,
+        memberOf: response.data.data.memberOf
+      }
+    });
+
+  } catch (err) {
+    console.error('F-number verification error details:', err.message);
+    
+    if (err.response) {
+      console.error('Error response status:', err.response.status);
+      console.error('Error response data:', JSON.stringify(err.response.data, null, 2));
+    }
+    
+    return res.status(500).json({ 
+      isValid: false, 
+      error: `Server error during F-number verification: ${err.message}` 
+    });
+  }
+};
+
+// NEW: LDAP Authentication function
+const authenticateLdapUser = async (req, res) => {
+  const { fnumber, password } = req.body;
+
+  if (!fnumber || !password) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'F-number and password are required' 
+    });
+  }
+
+  try {
+    console.log(`[LDAP-AUTH] Authentication attempt for user: ${fnumber}`);
+    
+    const authToken = await getAuthToken();
+    console.log('[LDAP-AUTH] Successfully obtained token for authentication');
+    
+    console.log('[LDAP-AUTH] Sending authentication request to LDAP service');
+    const authResponse = await axios.post(LDAP_AUTH_URL, {
+      fnumber,
+      password
+    }, { 
+      headers: {
+        'Authorization': authToken,
+        'Content-Type': 'application/json'
+      },
+      httpsAgent: new require('https').Agent({ rejectUnauthorized: false }) 
+    });
+    
+    console.log('[LDAP-AUTH] Auth response status:', authResponse.status);
+    
+    // Check for invalid credentials scenarios
+    if (authResponse.data && 
+        (authResponse.data.status_code === '401' || 
+         authResponse.data.status_code === 401 ||
+         (authResponse.data.status_message && 
+          authResponse.data.status_message.toLowerCase().includes('invalid credentials')))) {
+      console.log('[LDAP-AUTH] Invalid credentials for user:', fnumber);
+      
+      await loginLogService.logFailedLogin(
+        fnumber, 
+        'Invalid LDAP credentials', 
+        req
+      );
+      
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid credentials. Please check your F-number and password.' 
+      });
+    }
+    
+    // Check for any other error conditions
+    if (!authResponse.data || 
+        (authResponse.data.status_code !== '000' && 
+         authResponse.data.status_code !== '0' && 
+         authResponse.data.status_code !== 0)) {
+      console.error('[LDAP-AUTH] Authentication failed:', JSON.stringify(authResponse.data, null, 2));
+      
+      await loginLogService.logFailedLogin(
+        fnumber, 
+        `LDAP authentication failed: ${authResponse.data?.status_message}`, 
+        req
+      );
+      
+      return res.status(401).json({ 
+        success: false, 
+        error: authResponse.data?.status_message || 'Authentication failed. Please try again.' 
+      });
+    }
+    
+    // Check if we have a valid token in the response
+    if (!authResponse.data.token) {
+      console.error('[LDAP-AUTH] Authentication response missing token');
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Authentication system error. Please try again later.' 
+      });
+    }
+    
+    console.log('[LDAP-AUTH] Authentication successful for user:', fnumber);
+    console.log('[LDAP-AUTH] Returning token for 2FA verification');
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Authentication successful, proceed with 2FA verification',
+      token: authResponse.data.token, 
+      data: authResponse.data,
+      requiresTwoFA: true
+    });
+    
+  } catch (err) {
+    console.error('[LDAP-AUTH] Authentication error:', err.message);
+    
+    await loginLogService.logFailedLogin(
+      fnumber, 
+      `LDAP system error: ${err.message}`, 
+      req
+    );
+    
+    if (err.response && err.response.data) {
+      const errorData = err.response.data;
+      
+      if (errorData.status_code === 401 || 
+          (errorData.status_message && 
+           errorData.status_message.toLowerCase().includes('invalid')) ||
+          (errorData.error && 
+           errorData.error.toLowerCase().includes('credentials'))) {
+        
+        console.log('[LDAP-AUTH] Server reported invalid credentials');
+        return res.status(401).json({ 
+          success: false, 
+          error: 'Invalid credentials. Please check your F-number and password.' 
+        });
+      }
+      
+      console.error('[LDAP-AUTH] Error response status:', err.response.status);
+      console.error('[LDAP-AUTH] Error response data:', JSON.stringify(err.response.data, null, 2));
+    }
+    
+    return res.status(500).json({ 
+      success: false, 
+      error: `Authentication failed. Please try again later.` 
+    });
+  }
+};
+
+// NEW: 2FA Verification function
+
+
+// const verify2FA = async (req, res) => {
+//   console.log('[2FA] verify2FA function triggered');
+
+//   const { token, code, fnumber: requestFnumber } = req.body;
+
+//   if (!token) {
+//     return res.status(400).json({ 
+//       success: false, 
+//       error: 'Token is required' 
+//     });
+//   }
+
+//   try {
+//     console.log("[2FA] Starting 2FA verification process");
+//     if (code) {
+//       console.log("[2FA] Verifying with code:", code);
+//     } else {
+//       console.log("[2FA] Checking 2FA status without code");
+//     }
+    
+//     const authToken = await getAuthToken();
+//     console.log('[2FA] Successfully obtained token for 2FA verification');
+    
+//     console.log('[2FA] Sending verification request to LDAP service');
+//     const verifyResponse = await axios.post(LDAP_VERIFY_2FA_URL, {
+//       token,
+//       code: code || ""
+//     }, { 
+//       headers: {
+//         'Authorization': authToken,
+//         'Content-Type': 'application/json'
+//       },
+//       httpsAgent: new require('https').Agent({ rejectUnauthorized: false }) 
+//     });
+    
+//     console.log('[2FA] Verify response status:', verifyResponse.status);
+//     console.log('[2FA] Verify response data:', JSON.stringify(verifyResponse.data, null, 2));
+    
+//     if (!verifyResponse.data || 
+//         (verifyResponse.data.status_code !== '000' && 
+//          verifyResponse.data.status_code !== '0' && 
+//          verifyResponse.data.status_code !== 0)) {
+//       console.error('[2FA] 2FA verification failed:', JSON.stringify(verifyResponse.data, null, 2));
+      
+//       const fnumber = verifyResponse.data.fnumber || 
+//                      (verifyResponse.data.data && verifyResponse.data.data.fnumber) ||
+//                      requestFnumber;
+      
+//       if (fnumber) {
+//         await loginLogService.logFailedLogin(
+//           fnumber, 
+//           '2FA verification failed', 
+//           req
+//         );
+//       }
+      
+//       return res.status(401).json({ 
+//         success: false, 
+//         error: verifyResponse.data?.status_message || '2FA verification failed',
+//         data: verifyResponse.data 
+//       });
+//     }
+    
+//     console.log('[2FA] 2FA verification successful');
+    
+//     const fnumber = verifyResponse.data.fnumber || 
+//                    (verifyResponse.data.data && verifyResponse.data.data.fnumber) ||
+//                    requestFnumber;
+                   
+//     if (!fnumber) {
+//       console.error('[2FA] No fnumber found in response or request');
+//       return res.status(400).json({
+//         success: false,
+//         error: 'Unable to identify user. Missing F-number in response.',
+//       });
+//     }
+    
+//     console.log(`[2FA] User identified as: ${fnumber}`);
+    
+//     // NEW: Query users table to get user info using f-number
+    
+// console.log(`[2FA] User identified as: ${fnumber}`);
+
+// // Query users table to get user info using f-number
+// console.log(`[2FA] Querying users table for f-number: ${fnumber}`);
+
+// // For F-number users, both email and fnumber columns contain the same f-number (format: f8877557)
+// const userResult = await query(`
+//   SELECT * FROM users 
+//   WHERE is_fnumber_user = true 
+//   AND is_active = true
+//   AND (LOWER(email) = LOWER($1) OR LOWER(fnumber) = LOWER($1))
+// `, [fnumber]);
+
+// console.log(`[2FA] Query result count: ${userResult.rows.length}`);
+
+// if (userResult.rows.length === 0) {
+//   console.log(`[2FA] F-number user ${fnumber} not found in users table`);
+  
+//   // Debug: Let's see what F-number users exist
+//   try {
+//     const debugResult = await query(`
+//       SELECT id, email, fnumber, is_fnumber_user 
+//       FROM users 
+//       WHERE is_fnumber_user = true 
+//       AND is_active = true 
+//       AND (email ILIKE $1 OR fnumber ILIKE $1)
+//       LIMIT 5
+//     `, [`%${fnumber.replace('f', '')}%`]);
+    
+//     console.log(`[2FA] Debug - F-number users found with similar patterns:`, debugResult.rows);
+//   } catch (debugError) {
+//     console.error(`[2FA] Debug query failed:`, debugError);
+//   }
+  
+//   await loginLogService.logFailedLogin(
+//     fnumber, 
+//     'F-number user not found in system after 2FA', 
+//     req
+//   );
+  
+//   return res.status(404).json({
+//     success: false,
+//     error: 'User not found in system. Please contact administrator.',
+//   });
+// }
+
+// const user = userResult.rows[0];
+// console.log(`[2FA] F-number user found in database:`, {
+//   id: user.id,
+//   email: user.email,
+//   fnumber: user.fnumber,
+//   name: user.name,
+//   role: user.role,
+//   department: user.department,
+//   is_fnumber_user: user.is_fnumber_user
+// });
+
+// // Verify this is indeed an F-number user
+// if (!user.is_fnumber_user) {
+//   console.error(`[2FA] User found but is_fnumber_user is false for ${fnumber}`);
+//   return res.status(400).json({
+//     success: false,
+//     error: 'Invalid user type for F-number authentication.',
+//   });
+// }
+    
+//     // Generate session token using existing generateToken function
+//     const sessionToken = generateToken({
+//       userId: user.id,
+//       email: user.email,
+//       role: user.role
+//     });
+    
+//     // Store session in user_sessions table
+//     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+//     await query(
+//       'INSERT INTO user_sessions (user_id, token, expires_at) VALUES ($1, $2, $3)',
+//       [user.id, sessionToken, expiresAt]
+//     );
+    
+//     // Log successful login
+//     let logInfo = { sessionId: null };
+//     try {
+//       logInfo = await loginLogService.logSuccessfulLogin(user, req);
+//       console.log('[2FA] Login logged successfully');
+//     } catch (logError) {
+//       console.error('[2FA] Failed to log successful login:', logError.message);
+//     }
+    
+//     // Update user's last login
+//     try {
+//       await query(
+//         'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+//         [user.id]
+//       );
+//     } catch (updateError) {
+//       console.error('[2FA] Failed to update last login time:', updateError.message);
+//     }
+    
+//     console.log(`[2FA] Session token generated for user: ${fnumber}`);
+//     console.log('[2FA] 2FA verification process complete, returning success response');
+    
+//     const userInfo = {
+//       id: user.id,
+//       name: user.name,
+//       email: user.email,
+//       username: user.username,
+//       department: user.department,
+//       role: user.role
+//     };
+    
+//     return res.status(200).json({
+//       success: true,
+//       message: '2FA verification successful - Login complete',
+//       user: userInfo,
+//       token: sessionToken,
+//       sessionId: logInfo.sessionId,
+//       verifyResponseData: verifyResponse.data 
+//     });
+    
+//   } catch (err) {
+//     console.error('[2FA] 2FA verification error:', err.message);
+    
+//     const fnumber = requestFnumber;
+//     if (fnumber) {
+//       await loginLogService.logFailedLogin(
+//         fnumber, 
+//         `2FA system error: ${err.message}`, 
+//         req
+//       );
+//     }
+    
+//     if (err.response) {
+//       console.error('[2FA] Error response status:', err.response.status);
+//       console.error('[2FA] Error response data:', JSON.stringify(err.response.data, null, 2));
+//     }
+    
+//     return res.status(500).json({ 
+//       success: false, 
+//       error: `Server error during 2FA verification: ${err.message}` 
+//     });
+//   }
+// };
+
+
+const verify2FA = async (req, res) => {
+  const { token, code, fnumber: requestFnumber } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Token is required' 
+    });
+  }
+
+  try {
+    console.log("[2FA] Starting 2FA verification process");
+    if (code) {
+      console.log("[2FA] Verifying with code:", code);
+    } else {
+      console.log("[2FA] Checking 2FA status without code");
+    }
+    
+    const authToken = await getAuthToken();
+    console.log('[2FA] Successfully obtained token for 2FA verification');
+    
+    console.log('[2FA] Sending verification request to LDAP service');
+    const verifyResponse = await axios.post(LDAP_VERIFY_2FA_URL, {
+      token,
+      code: code || ""
+    }, { 
+      headers: {
+        'Authorization': authToken,
+        'Content-Type': 'application/json'
+      },
+      httpsAgent: new require('https').Agent({ rejectUnauthorized: false }) 
+    });
+    
+    console.log('[2FA] Verify response status:', verifyResponse.status);
+    console.log('[2FA] Verify response data:', JSON.stringify(verifyResponse.data, null, 2));
+    
+    if (!verifyResponse.data || 
+        (verifyResponse.data.status_code !== '000' && 
+         verifyResponse.data.status_code !== '0' && 
+         verifyResponse.data.status_code !== 0)) {
+      console.error('[2FA] 2FA verification failed:', JSON.stringify(verifyResponse.data, null, 2));
+      
+      const fnumber = verifyResponse.data.fnumber || 
+                     (verifyResponse.data.data && verifyResponse.data.data.fnumber) ||
+                     requestFnumber;
+      
+      if (fnumber) {
+        await loginLogService.logFailedLogin(
+          fnumber, 
+          '2FA verification failed', 
+          req
+        );
+      }
+      
+      return res.status(401).json({ 
+        success: false, 
+        error: verifyResponse.data?.status_message || '2FA verification failed',
+        data: verifyResponse.data 
+      });
+    }
+    
+    console.log('[2FA] 2FA verification successful');
+    
+    const fnumber = verifyResponse.data.fnumber || 
+                   (verifyResponse.data.data && verifyResponse.data.data.fnumber) ||
+                   requestFnumber;
+                   
+    if (!fnumber) {
+      console.error('[2FA] No fnumber found in response or request');
+      return res.status(400).json({
+        success: false,
+        error: 'Unable to identify user. Missing F-number in response.',
+      });
+    }
+    
+    console.log(`[2FA] User identified as: ${fnumber}`);
+
+    // **FIX: Use getUserByFnumber function instead of direct query**
+    let userResult;
+    try {
+      console.log(`[2FA] Calling getUserByFnumber for: ${fnumber}`);
+      
+      // Assuming you have a getUserByFnumber function in your auth controller
+      // You need to import/require this function or move it to a shared utility
+      userResult = await getUserByFnumber(fnumber);
+      
+      if (!userResult.success) {
+        console.log(`[2FA] getUserByFnumber failed:`, userResult.error);
+        
+        await loginLogService.logFailedLogin(
+          fnumber, 
+          userResult.error || 'User not found in system after 2FA verification', 
+          req
+        );
+        
+        return res.status(404).json({
+          success: false,
+          error: userResult.error || 'F-number user not found in system. Please contact administrator.',
+          fnumber: fnumber
+        });
+      }
+
+      const user = userResult.user;
+      console.log(`[2FA] User data retrieved successfully via getUserByFnumber:`, {
+        id: user.id,
+        email: user.email,
+        fnumber: user.fnumber,
+        name: user.name,
+        role: user.role,
+        department: user.department
+      });
+
+    } catch (getUserError) {
+      console.error(`[2FA] Error calling getUserByFnumber:`, getUserError.message);
+      
+      await loginLogService.logFailedLogin(
+        fnumber, 
+        `getUserByFnumber error: ${getUserError.message}`, 
+        req
+      );
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve user information. Please try again.',
+      });
+    }
+    
+    const user = userResult.user;
+    
+    // Generate session token using existing generateToken function
+    const sessionToken = generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role
+    });
+    
+    // Store session in user_sessions table
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await query(
+      'INSERT INTO user_sessions (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.id, sessionToken, expiresAt]
+    );
+    
+    // Log successful login
+    let logInfo = { sessionId: null };
+    try {
+      logInfo = await loginLogService.logSuccessfulLogin(user, req);
+      console.log('[2FA] Login logged successfully');
+    } catch (logError) {
+      console.error('[2FA] Failed to log successful login:', logError.message);
+    }
+    
+    // Update user's last login
+    try {
+      await query(
+        'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+        [user.id]
+      );
+    } catch (updateError) {
+      console.error('[2FA] Failed to update last login time:', updateError.message);
+    }
+    
+    console.log(`[2FA] Session token generated for user: ${fnumber}`);
+    console.log('[2FA] 2FA verification process complete, returning success response');
+    
+    const userInfo = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      department: user.department,
+      role: user.role,
+      fnumber: user.fnumber, // Make sure fnumber is included
+      is_fnumber_user: user.is_fnumber_user
+    };
+    console.log('[2FA] Final response being sent to frontend:', {
+      success: true,
+      user: userInfo, // Make sure this contains all necessary fields
+      token: sessionToken,
+      sessionId: logInfo.sessionId
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: '2FA verification successful - Login complete',
+      user: userInfo,
+      token: sessionToken,
+      sessionId: logInfo.sessionId,
+      verifyResponseData: verifyResponse.data 
+    });
+    
+  } catch (err) {
+    console.error('[2FA] 2FA verification error:', err.message);
+    
+    const fnumber = requestFnumber;
+    if (fnumber) {
+      await loginLogService.logFailedLogin(
+        fnumber, 
+        `2FA system error: ${err.message}`, 
+        req
+      );
+    }
+    
+    if (err.response) {
+      console.error('[2FA] Error response status:', err.response.status);
+      console.error('[2FA] Error response data:', JSON.stringify(err.response.data, null, 2));
+    }
+    
+    return res.status(500).json({ 
+      success: false, 
+      error: `Server error during 2FA verification: ${err.message}` 
+    });
+  }
+};
+/**
+ * Get user data by F-number
+ * This function queries the users table to find a user by their F-number
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getUserByFnumber = async (req, res) => {
+  const { fnumber } = req.body;
+
+  // Validate input
+  if (!fnumber) {
+    return res.status(400).json({
+      success: false,
+      error: 'F-number is required'
+    });
+  }
+
+  // Validate F-number format (f followed by 7 digits)
+  const fnumberRegex = /^f\d{7}$/i;
+  if (!fnumberRegex.test(fnumber)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid F-number format. Expected format: f1234567'
+    });
+  }
+
+  try {
+    console.log(`[GET_USER_BY_FNUMBER] Querying user data for F-number: ${fnumber}`);
+
+    // Query users table to get user info using f-number
+    // For F-number users, both email and fnumber columns contain the same f-number (format: f8877557)
+    const userResult = await query(`
+      SELECT 
+        id, 
+        name, 
+        email, 
+        username, 
+        department, 
+        role, 
+        status, 
+        is_active, 
+        last_login, 
+        created_at, 
+        updated_at, 
+        is_fnumber_user, 
+        fnumber
+      FROM users 
+      WHERE is_fnumber_user = true 
+      AND is_active = true
+      AND (LOWER(email) = LOWER($1) OR LOWER(fnumber) = LOWER($1))
+    `, [fnumber]);
+
+    console.log(`[GET_USER_BY_FNUMBER] Query result count: ${userResult.rows.length}`);
+
+    if (userResult.rows.length === 0) {
+      console.log(`[GET_USER_BY_FNUMBER] F-number user ${fnumber} not found in users table`);
+      
+      // Debug: Let's see what F-number users exist with similar patterns
+      try {
+        const debugResult = await query(`
+          SELECT id, email, fnumber, is_fnumber_user 
+          FROM users 
+          WHERE is_fnumber_user = true 
+          AND is_active = true 
+          AND (email ILIKE $1 OR fnumber ILIKE $1)
+          LIMIT 5
+        `, [`%${fnumber.replace('f', '')}%`]);
+        
+        console.log(`[GET_USER_BY_FNUMBER] Debug - F-number users found with similar patterns:`, debugResult.rows);
+      } catch (debugError) {
+        console.error(`[GET_USER_BY_FNUMBER] Debug query failed:`, debugError);
+      }
+      
+      return res.status(404).json({
+        success: false,
+        error: 'F-number user not found in system. Please contact administrator.',
+        fnumber: fnumber
+      });
+    }
+
+    const user = userResult.rows[0];
+    console.log(`[GET_USER_BY_FNUMBER] F-number user found in database:`, {
+      id: user.id,
+      email: user.email,
+      fnumber: user.fnumber,
+      name: user.name,
+      role: user.role,
+      department: user.department,
+      is_fnumber_user: user.is_fnumber_user
+    });
+
+    // Verify this is indeed an F-number user
+    if (!user.is_fnumber_user) {
+      console.error(`[GET_USER_BY_FNUMBER] User found but is_fnumber_user is false for ${fnumber}`);
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user type for F-number authentication.',
+        fnumber: fnumber
+      });
+    }
+
+    // Check if user is active
+    if (!user.is_active) {
+      console.error(`[GET_USER_BY_FNUMBER] User found but is not active for ${fnumber}`);
+      return res.status(403).json({
+        success: false,
+        error: 'User account is not active. Please contact administrator.',
+        fnumber: fnumber
+      });
+    }
+
+    // Return user data (exclude sensitive information)
+    const userData = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      department: user.department,
+      role: user.role,
+      status: user.status,
+      is_active: user.is_active,
+      last_login: user.last_login,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+      is_fnumber_user: user.is_fnumber_user,
+      fnumber: user.fnumber
+    };
+
+    console.log(`[GET_USER_BY_FNUMBER] Successfully retrieved user data for F-number: ${fnumber}`);
+    
+    return res.status(200).json({
+      success: true,
+      message: 'User data retrieved successfully',
+      user: userData,
+      fnumber: fnumber
+    });
+
+  } catch (error) {
+    console.error('[GET_USER_BY_FNUMBER] Database error:', error.message);
+    
+    return res.status(500).json({
+      success: false,
+      error: `Server error while retrieving user data: ${error.message}`,
+      fnumber: fnumber
+    });
+  }
+};
+
+
+//backend logg
+[GET_USER_BY_FNUMBER] Query result count: 1
+[GET_USER_BY_FNUMBER] F-number user found in database: {
+  id: 'e80abd4c-038a-4c12-8d60-2ab67f7e4af6',
+  email: 'f8877557',
+  fnumber: 'f8877557',
+  name: 'Francis Kontoh',
+  role: 'DEPARTMENT_USER',
+  department: 'IT',
+  is_fnumber_user: true
+}
+[GET_USER_BY_FNUMBER] Successfully retrieved user data for F-number: F8877557
+POST /api/auth/get-user-by-fnumber 200 5.824 ms - 417
