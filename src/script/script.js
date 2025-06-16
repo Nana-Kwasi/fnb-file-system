@@ -5234,6 +5234,7 @@ GET /api/invoices 401 1.135 ms - 43
 
 
 //new auth context
+
 const verify2FA = async (code, sessionId = null) => {
   try {
     const activeSessionId = sessionId || twoFASessionId;
@@ -5631,3 +5632,20 @@ const Login = () => {
 };
 
 export default Login;
+
+
+//newwww
+
+[2FA] 2FA verification successful
+[2FA] User identified as: F8877557
+[2FA] Calling getUserByFnumber for: F8877557
+[2FA] Error calling getUserByFnumber: Cannot destructure property 'fnumber' of 'req.body' as it is undefined.
+✓ Database client acquired from pool (PID: 34916)
+Executed query {
+  text: '\n        INSERT INTO login_logs (\n          email,...',
+  duration: 3,
+  rows: 1,
+  attempt: undefined
+}
+✅ Failed login logged for: F8877557
+POST /api/auth/verify-2fa 500 1984.648 ms - 82
