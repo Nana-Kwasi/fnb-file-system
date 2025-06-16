@@ -4176,7 +4176,7 @@ console.log('[2FA] Final response being sent to frontend:', {
 
 
 
-//logg
+//frontend logs
 
 {id: 'e80abd4c-038a-4c12-8d60-2ab67f7e4af6', name: 'Francis Kontoh', email: 'f8877557', username: 'admin', department: 'IT', …}
 created_at
@@ -4219,9 +4219,6 @@ username
 : 
 "admin"
 
-
-
-//another logg
 Login.js:676 
  [LOGIN] Error fetching user data: TypeError: setUser is not a function
     at Login.js:670:1
@@ -5137,3 +5134,61 @@ const getUserByFnumber = async (req, res) => {
 }
 [GET_USER_BY_FNUMBER] Successfully retrieved user data for F-number: F8877557
 POST /api/auth/get-user-by-fnumber 200 5.824 ms - 417
+
+
+
+
+
+//fixed
+// AuthContext.js - Add setUser to the provider value
+return (
+  <AuthContext.Provider 
+    value={{
+      // Auth state
+      user,
+      token,
+      sessionId,
+      loading,
+      
+      // LDAP/2FA state
+      twoFASessionId,
+      pendingLdapAuth,
+      
+      // Auth methods
+      login,
+      logout,
+      isAdmin,
+      hasRole,
+      apiRequest,
+      isFnumber,
+      setUser, // ADD THIS LINE - Make setUser available to components
+      
+      // LDAP/2FA methods
+      authenticateLdap,
+      verify2FA,
+      track2FAStatus,
+      verifyFnumber,
+      getUserByFnumber,
+      
+      // Login Logs methods
+      getLoginLogs,
+      getLoginStats,
+      getSuspiciousActivities,
+      exportLoginLogs,
+      downloadLoginLogsCSV,
+      
+      // User Management methods
+      getAllUsers,
+      createUser,
+      updateUser,
+      updateUserPassword,
+      deleteUser,
+      
+      // Constants
+      ROLES,
+      DEPARTMENTS,
+    }}
+  >
+    {children}
+  </AuthContext.Provider>
+);
