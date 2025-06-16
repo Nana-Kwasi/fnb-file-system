@@ -481,24 +481,38 @@ const verify2FA = async (code, sessionId = null) => {
       console.log('[AUTH_CONTEXT] Setting token:', data.token ? 'PROVIDED' : 'MISSING');
       console.log('[AUTH_CONTEXT] Setting sessionId:', data.sessionId ? 'PROVIDED' : 'MISSING');
       
+      // **CRITICAL FIX: Force state update immediately**
+      const newUser = data.user;
+      const newToken = data.token;
+      const newSessionId = data.sessionId;
+      
       // Complete login process
-      setUser(data.user);
-      setToken(data.token);
-      setSessionId(data.sessionId);
+      setUser(newUser);
+      setToken(newToken);
+      setSessionId(newSessionId);
       
       // Store in localStorage with additional logging
-      localStorage.setItem('user', JSON.stringify(data.user));
-      localStorage.setItem('token', data.token);
-      if (data.sessionId) {
-        localStorage.setItem('sessionId', data.sessionId);
+      localStorage.setItem('user', JSON.stringify(newUser));
+      localStorage.setItem('token', newToken);
+      if (newSessionId) {
+        localStorage.setItem('sessionId', newSessionId);
       }
       
       console.log('[AUTH_CONTEXT] Data stored in localStorage');
-      console.log('[AUTH_CONTEXT] Current user state after setting:', user);
+      console.log('[AUTH_CONTEXT] LocalStorage token check:', localStorage.getItem('token'));
+      console.log('[AUTH_CONTEXT] LocalStorage user check:', localStorage.getItem('user'));
       
       // Clear 2FA state
       setTwoFASessionId(null);
       setPendingLdapAuth(null);
+      
+      // **ADDITIONAL FIX: Return the new data immediately**
+      return {
+        ...data,
+        user: newUser,
+        token: newToken,
+        sessionId: newSessionId
+      };
     }
 
     return data;
