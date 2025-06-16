@@ -1265,3 +1265,576 @@ const track2FAStatus = async (sessionId) => {
     throw error;
   }
 };
+
+
+
+
+//newwww
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../Context/AuthContext";
+import "../login.css";
+
+const Login = () => {
+  const [identifier, setIdentifier] = useState(""); 
+  const [password, setPassword] = useState("");
+  const [twoFACode, setTwoFACode] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showTwoFA, setShowTwoFA] = useState(false);
+  const [showTwoFAModal, setShowTwoFAModal] = useState(false);
+  const [twoFASessionId, setTwoFASessionId] = useState(null);
+  const [showManualCodeInput, setShowManualCodeInput] = useState(false);
+  const [pollingInterval, setPollingInterval] = useState(null);
+  
+  const navigate = useNavigate();
+  const { login, authenticateLdap, verify2FA, track2FAStatus, isFnumber, setUser, getUserByFnumber } = useAuth();
+
+  // Cleanup polling interval on component unmount
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    // Basic validation
+    if (!identifier || !password) {
+      setError("F-number and password are required");
+      setLoading(false);
+      return;
+    }
+
+    // Identifier length validation
+    if (identifier.length > 50) {
+      setError("F-number is too long");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const isUsingFnumber = isFnumber(identifier);
+      
+      if (isUsingFnumber) {
+        // LDAP Authentication Flow
+        const ldapResult = await authenticateLdap(identifier, password);
+        
+        console.log('[LOGIN] LDAP Result:', ldapResult);
+        
+        if (ldapResult.success) {
+          // Extract the session ID from the LDAP response
+          const sessionId = ldapResult.twoFASessionId || 
+                           ldapResult.token || 
+                           ldapResult.sessionId || 
+                           ldapResult.data?.token ||
+                           ldapResult.data?.sessionId;
+          
+          console.log('[LOGIN] Extracted session ID:', sessionId ? 'Present' : 'Missing');
+          
+          if (!sessionId) {
+            console.error('[LOGIN] No session ID found in LDAP response:', ldapResult);
+            setError("Authentication setup failed. Please try again.");
+            setLoading(false);
+            return;
+          }
+          
+          setTwoFASessionId(sessionId);
+          setShowTwoFAModal(true);
+          setError("");
+          
+          // Start polling for 2FA status
+          startPolling2FAStatus(sessionId);
+        }
+      } else {
+        // Traditional email login
+        const result = await login(identifier, password);
+        
+        if (result.success) {
+          if (result.requires2FA) {
+            setShowTwoFA(true);
+            setTwoFASessionId(result.twoFASessionId);
+            setError("");
+          } else {
+            navigate("/dashboard");
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError(err.message || "Login failed. Please check your credentials.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startPolling2FAStatus = (sessionId) => {
+    console.log('[LOGIN] Starting 2FA polling with sessionId:', sessionId ? 'Present' : 'Missing');
+    
+    if (!sessionId) {
+      console.error('[LOGIN] No sessionId provided to startPolling2FAStatus');
+      setError("2FA session ID missing. Please try logging in again.");
+      return;
+    }
+  
+    const interval = setInterval(async () => {
+      try {
+        console.log('[LOGIN] Polling 2FA status with sessionId:', sessionId);
+        
+        const statusResult = await track2FAStatus(sessionId);
+        
+        console.log('[LOGIN] Status result:', {
+          success: statusResult.success,
+          verificationStatus: statusResult.verificationStatus,
+          statusCode: statusResult.statusCode,
+          statusMessage: statusResult.statusMessage
+        });
+        
+        if (statusResult.success) {
+          if (statusResult.verificationStatus === "success") {
+            // 2FA was accepted on phone
+            console.log('[LOGIN] 2FA verified successfully');
+            clearInterval(interval);
+            setPollingInterval(null);
+            setShowTwoFAModal(false);
+            setLoading(true);
+            
+            // **ENHANCED: Complete authentication flow after 2FA success**
+            try {
+              console.log('[LOGIN] Completing authentication after 2FA success');
+              
+              // Use verify2FA to complete the authentication and get proper tokens
+              const finalResult = await verify2FA("AUTO_VERIFIED", sessionId);
+              
+              if (finalResult.success) {
+                console.log('[LOGIN] Authentication completed successfully');
+                // Navigation will be handled by the verify2FA success flow
+                navigate("/dashboard");
+              } else {
+                throw new Error('Failed to complete authentication after 2FA');
+              }
+            } catch (authError) {
+              console.error('[LOGIN] Error completing authentication:', authError);
+              setError("2FA verified but failed to complete login. Please try again.");
+            }
+            
+            setLoading(false);
+          } else if (statusResult.verificationStatus === "failed") {
+            // 2FA was rejected
+            console.log('[LOGIN] 2FA was rejected');
+            clearInterval(interval);
+            setPollingInterval(null);
+            setShowTwoFAModal(false);
+            setError("2FA verification was declined. Please try again.");
+          }
+          // If pending, continue polling
+        }
+      } catch (err) {
+        console.error('[LOGIN] 2FA status polling error:', err);
+        
+        // Handle session expiry or other fatal errors
+        if (err.message.includes('session') || err.message.includes('expired')) {
+          clearInterval(interval);
+          setPollingInterval(null);
+          setShowTwoFAModal(false);
+          setError("2FA session expired. Please login again.");
+        } else if (err.message.includes('2FA session ID is required')) {
+          // Handle missing session ID error
+          clearInterval(interval);
+          setPollingInterval(null);
+          setShowTwoFAModal(false);
+          setError("2FA session error. Please login again.");
+        }
+      }
+    }, 2000);
+  
+    setPollingInterval(interval);
+  
+    // Auto-stop polling after 5 minutes
+    setTimeout(() => {
+      console.log('[LOGIN] 2FA polling timeout reached');
+      clearInterval(interval);
+      setPollingInterval(null);
+      if (showTwoFAModal) {
+        setShowTwoFAModal(false);
+        setError("2FA verification timed out. Please try again.");
+      }
+    }, 300000);
+  };
+
+  const handleManualCodeSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    if (!twoFACode) {
+      setError("2FA code is required");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const result = await verify2FA(twoFACode, twoFASessionId);
+      
+      if (result.success) {
+        // Stop polling if it's running
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+        setShowTwoFAModal(false);
+        setShowTwoFA(false);
+        navigate("/dashboard");
+      } else {
+        setError(result.message || "2FA verification failed");
+      }
+    } catch (err) {
+      console.error('2FA verification error:', err);
+      setError(err.message || "2FA verification failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handle2FASubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    if (!twoFACode) {
+      setError("2FA code is required");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const result = await verify2FA(twoFACode, twoFASessionId);
+      
+      if (result.success) {
+        navigate("/dashboard");
+      } else {
+        setError(result.message || "2FA verification failed");
+      }
+    } catch (err) {
+      console.error('2FA verification error:', err);
+      setError(err.message || "2FA verification failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToLogin = () => {
+    // Stop polling if running
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+    
+    setShowTwoFA(false);
+    setShowTwoFAModal(false);
+    setTwoFACode("");
+    setTwoFASessionId(null);
+    setShowManualCodeInput(false);
+    setError("");
+  };
+
+  const handleCancelTwoFA = () => {
+    // Stop polling
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+    
+    setShowTwoFAModal(false);
+    setShowManualCodeInput(false);
+    setTwoFACode("");
+    setError("2FA verification cancelled. Please login again.");
+  };
+
+  // Determine if user is entering f-number or email
+  const isUsingFnumber = isFnumber(identifier);
+
+  // Rest of your JSX remains the same...
+  return (
+    <div className="login-container">
+      {/* Your existing JSX for the login form */}
+    </div>
+  );
+};
+
+// auth context
+// Key fixes for the verify2FA method in AuthContext.js
+
+const verify2FA = async (code, sessionId = null) => {
+  try {
+    const activeSessionId = sessionId || twoFASessionId;
+    
+    if (!activeSessionId) {
+      throw new Error('No active 2FA session found');
+    }
+
+    console.log('[AUTH_CONTEXT] Sending 2FA verification request with:', {
+      code: code ? 'PROVIDED' : 'MISSING',
+      sessionId: activeSessionId ? 'PROVIDED' : 'MISSING'
+    });
+
+    const response = await apiRequest('/api/auth/verify-2fa', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        code, 
+        token: activeSessionId,
+        fnumber: pendingLdapAuth?.fnumber
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[AUTH_CONTEXT] 2FA verification failed:', errorData);
+      throw new Error(errorData.error || '2FA verification failed');
+    }
+
+    const data = await response.json();
+    console.log('[AUTH_CONTEXT] 2FA verification response:', data);
+
+    if (data.success) {
+      console.log('[AUTH_CONTEXT] 2FA verification successful');
+      
+      // **CRITICAL FIX: Handle authentication completion properly**
+      
+      // Case 1: Backend returns complete authentication data
+      if (data.user && data.token) {
+        console.log('[AUTH_CONTEXT] Backend returned complete auth data');
+        
+        const authToken = data.token;
+        const authSessionId = data.sessionId || activeSessionId;
+        
+        // Set auth state
+        setUser(data.user);
+        setToken(authToken);
+        setSessionId(authSessionId);
+        
+        // **CRITICAL: Store in localStorage immediately**
+        localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('token', authToken);
+        localStorage.setItem('sessionId', authSessionId);
+        
+        console.log('[AUTH_CONTEXT] Auth data stored in localStorage');
+        
+        // Clear 2FA state
+        setTwoFASessionId(null);
+        setPendingLdapAuth(null);
+        
+        return {
+          success: true,
+          user: data.user,
+          token: authToken,
+          sessionId: authSessionId
+        };
+      }
+      
+      // Case 2: Need to fetch user data separately
+      else if (data.fnumber || pendingLdapAuth?.fnumber) {
+        const fnumberToUse = data.fnumber || pendingLdapAuth?.fnumber;
+        console.log('[AUTH_CONTEXT] Fetching user data for fnumber:', fnumberToUse);
+        
+        try {
+          // **CRITICAL FIX: Use the session token for subsequent requests**
+          const tempToken = data.token || activeSessionId;
+          
+          // Temporarily set token for API requests
+          const oldToken = token;
+          setToken(tempToken);
+          
+          const userData = await getUserByFnumber(fnumberToUse);
+          
+          if (userData.success && userData.user) {
+            console.log('[AUTH_CONTEXT] User data fetched successfully');
+            
+            const authToken = data.token || tempToken;
+            const authSessionId = data.sessionId || activeSessionId;
+            
+            // Set final auth state
+            setUser(userData.user);
+            setToken(authToken);
+            setSessionId(authSessionId);
+            
+            // **CRITICAL: Store in localStorage immediately**
+            localStorage.setItem('user', JSON.stringify(userData.user));
+            localStorage.setItem('token', authToken);
+            localStorage.setItem('sessionId', authSessionId);
+            
+            console.log('[AUTH_CONTEXT] Complete auth data stored in localStorage');
+            
+            // Clear 2FA state
+            setTwoFASessionId(null);
+            setPendingLdapAuth(null);
+            
+            return {
+              success: true,
+              user: userData.user,
+              token: authToken,
+              sessionId: authSessionId
+            };
+          } else {
+            // Restore old token if user fetch failed
+            setToken(oldToken);
+            throw new Error('Failed to fetch user data');
+          }
+        } catch (userFetchError) {
+          console.error('[AUTH_CONTEXT] Error fetching user data:', userFetchError);
+          throw new Error('2FA verified but failed to load user profile. Please try logging in again.');
+        }
+      } 
+      
+      // Case 3: Auto-verification from polling (use existing session)
+      else if (code === "AUTO_VERIFIED") {
+        console.log('[AUTH_CONTEXT] Handling auto-verification from polling');
+        
+        // Use existing session as auth token
+        const authToken = activeSessionId;
+        const authSessionId = activeSessionId;
+        
+        // If we have pending LDAP auth, fetch user data
+        if (pendingLdapAuth?.fnumber) {
+          try {
+            // Temporarily set token for API requests
+            const oldToken = token;
+            setToken(authToken);
+            
+            const userData = await getUserByFnumber(pendingLdapAuth.fnumber);
+            
+            if (userData.success && userData.user) {
+              console.log('[AUTH_CONTEXT] User data fetched for auto-verification');
+              
+              // Set final auth state
+              setUser(userData.user);
+              setToken(authToken);
+              setSessionId(authSessionId);
+              
+              // **CRITICAL: Store in localStorage immediately**
+              localStorage.setItem('user', JSON.stringify(userData.user));
+              localStorage.setItem('token', authToken);
+              localStorage.setItem('sessionId', authSessionId);
+              
+              console.log('[AUTH_CONTEXT] Auto-verification auth data stored');
+              
+              // Clear 2FA state
+              setTwoFASessionId(null);
+              setPendingLdapAuth(null);
+              
+              return {
+                success: true,
+                user: userData.user,
+                token: authToken,
+                sessionId: authSessionId
+              };
+            } else {
+              setToken(oldToken);
+              throw new Error('Failed to fetch user data for auto-verification');
+            }
+          } catch (error) {
+            console.error('[AUTH_CONTEXT] Auto-verification user fetch error:', error);
+            throw error;
+          }
+        } else {
+          throw new Error('No pending LDAP authentication data found');
+        }
+      }
+      
+      else {
+        throw new Error('2FA verified but missing authentication data');
+      }
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[AUTH_CONTEXT] 2FA verification error:', error);
+    throw error;
+  }
+};
+
+// **ENHANCED getUserByFnumber method**
+const getUserByFnumber = async (fnumber) => {
+  try {
+    if (!fnumber) {
+      throw new Error('F-number is required');
+    }
+
+    // **FIX: Clean and validate F-number format**
+    let cleanFnumber = fnumber.toString().trim().toLowerCase();
+    
+    // Add 'f' prefix if missing
+    if (!cleanFnumber.startsWith('f')) {
+      cleanFnumber = 'f' + cleanFnumber;
+    }
+    
+    // Validate F-number format
+    if (!/^f\d{7}$/i.test(cleanFnumber)) {
+      throw new Error('Invalid F-number format. Expected format: f1234567');
+    }
+
+    console.log('[AUTH_CONTEXT] Getting user data for F-number:', cleanFnumber);
+
+    const response = await apiRequest('/api/auth/get-user-by-fnumber', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        fnumber: cleanFnumber  // **FIX: Ensure correct property name**
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[AUTH_CONTEXT] getUserByFnumber failed:', errorData);
+      throw new Error(errorData.error || errorData.message || 'Failed to get user data');
+    }
+
+    const data = await response.json();
+    console.log('[AUTH_CONTEXT] User data retrieved successfully:', data.success);
+    
+    return data;
+  } catch (error) {
+    console.error('[AUTH_CONTEXT] Get user by F-number error:', error);
+    throw error;
+  }
+};
+
+
+
+
+// **ENHANCED apiRequest method to handle token properly**
+const apiRequest = async (endpoint, options = {}) => {
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  // **FIX: Get current token dynamically**
+  const currentToken = token || localStorage.getItem('token');
+  const currentSessionId = sessionId || localStorage.getItem('sessionId');
+  
+  const config = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(currentToken && { Authorization: `Bearer ${currentToken}` }),
+      ...(currentSessionId && { 'x-session-id': currentSessionId }),
+      ...options.headers,
+    },
+    ...options,
+  };
+
+  console.log('[AUTH_CONTEXT] API Request:', {
+    endpoint,
+    hasToken: !!currentToken,
+    hasSessionId: !!currentSessionId
+  });
+
+  try {
+    const response = await fetch(url, config);
+    return response;
+  } catch (error) {
+    console.error('API request error:', error);
+    throw error;
+  }
+};
