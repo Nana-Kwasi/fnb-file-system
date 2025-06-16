@@ -446,6 +446,7 @@
 // export default Login;
 
 
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../Context/AuthContext";
@@ -464,7 +465,7 @@ const Login = () => {
   const [pollingInterval, setPollingInterval] = useState(null);
   
   const navigate = useNavigate();
-  const { login, authenticateLdap, verify2FA, track2FAStatus, isFnumber, setUser, getUserByFnumber } = useAuth();
+  const { login, authenticateLdap, verify2FA, track2FAStatus, isFnumber,setUser,getUserByFnumber } = useAuth();
 
   // Cleanup polling interval on component unmount
   useEffect(() => {
@@ -505,6 +506,7 @@ const Login = () => {
         
         if (ldapResult.success) {
           // Extract the session ID from the LDAP response
+          // This could be 'token', 'twoFASessionId', 'sessionId', etc.
           const sessionId = ldapResult.twoFASessionId || 
                            ldapResult.token || 
                            ldapResult.sessionId || 
@@ -552,6 +554,7 @@ const Login = () => {
 
   const startPolling2FAStatus = (sessionId) => {
     console.log('[LOGIN] Starting 2FA polling with sessionId:', sessionId ? 'Present' : 'Missing');
+    console.log('[LOGIN] Actual sessionId value:', sessionId);
     
     if (!sessionId) {
       console.error('[LOGIN] No sessionId provided to startPolling2FAStatus');
@@ -575,28 +578,32 @@ const Login = () => {
         if (statusResult.success) {
           if (statusResult.verificationStatus === "success") {
             // 2FA was accepted on phone
-            console.log('[LOGIN] 2FA verified successfully, calling verify2FA...');
+            console.log('[LOGIN] 2FA verified successfully');
             clearInterval(interval);
             setPollingInterval(null);
             setShowTwoFAModal(false);
             setLoading(true);
             
+            // **ENHANCEMENT: Fetch user data after 2FA success**
             try {
-              // **FIX: Call verify2FA with empty code since it was already verified**
-              const verifyResult = await verify2FA('', sessionId);
-              
-              if (verifyResult.success) {
-                console.log('[LOGIN] Full authentication completed successfully');
-                setLoading(false);
-                navigate("/dashboard");
-              } else {
-                throw new Error('Failed to complete authentication');
+              if (statusResult.fnumber) {
+                console.log('[LOGIN] Fetching user data for fnumber:', statusResult.fnumber);
+                const userData = await getUserByFnumber(statusResult.fnumber);
+                
+                if (userData.success) {
+                  console.log('[LOGIN] User data fetched successfully:', userData.user);
+                  // Update auth context with complete user data
+                  setUser(userData.user);
+                } else {
+                  console.warn('[LOGIN] Failed to fetch user data:', userData.error);
+                }
               }
-            } catch (verifyError) {
-              console.error('[LOGIN] Error completing 2FA verification:', verifyError);
-              setLoading(false);
-              setError("Authentication completed but failed to load profile. Please try again.");
+            } catch (userFetchError) {
+              console.error('[LOGIN] Error fetching user data:', userFetchError);
+              // Don't block login if user data fetch fails
             }
+            
+            navigate("/dashboard");
           } else if (statusResult.verificationStatus === "failed") {
             // 2FA was rejected
             console.log('[LOGIN] 2FA was rejected');
@@ -639,7 +646,6 @@ const Login = () => {
       }
     }, 300000);
   };
-
   const handleManualCodeSubmit = async (e) => {
     e.preventDefault();
     setError("");
