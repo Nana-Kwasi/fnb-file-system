@@ -406,49 +406,49 @@ export const AuthProvider = ({ children }) => {
     }
   };
   
-const getUserByFnumber = async (fnumber) => {
-  try {
-    if (!fnumber) {
-      throw new Error('F-number is required');
+  const getUserByFnumber = async (fnumber) => {
+    try {
+      if (!fnumber) {
+        throw new Error('F-number is required');
+      }
+  
+      // **FIX: Clean and validate F-number format**
+      let cleanFnumber = fnumber.toString().trim().toLowerCase();
+      
+      // Add 'f' prefix if missing
+      if (!cleanFnumber.startsWith('f')) {
+        cleanFnumber = 'f' + cleanFnumber;
+      }
+      
+      // Validate F-number format
+      if (!/^f\d{7}$/i.test(cleanFnumber)) {
+        throw new Error('Invalid F-number format. Expected format: f1234567');
+      }
+  
+      console.log('[AUTH_CONTEXT] Getting user data for F-number:', cleanFnumber);
+  
+      const response = await apiRequest('/api/auth/get-user-by-fnumber', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          fnumber: cleanFnumber  // **FIX: Ensure correct property name**
+        }),
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('[AUTH_CONTEXT] getUserByFnumber failed:', errorData);
+        throw new Error(errorData.error || errorData.message || 'Failed to get user data');
+      }
+  
+      const data = await response.json();
+      console.log('[AUTH_CONTEXT] User data retrieved successfully:', data.success);
+      
+      return data;
+    } catch (error) {
+      console.error('[AUTH_CONTEXT] Get user by F-number error:', error);
+      throw error;
     }
-
-    // **FIX: Clean and validate F-number format**
-    let cleanFnumber = fnumber.toString().trim().toLowerCase();
-    
-    // Add 'f' prefix if missing
-    if (!cleanFnumber.startsWith('f')) {
-      cleanFnumber = 'f' + cleanFnumber;
-    }
-    
-    // Validate F-number format
-    if (!/^f\d{7}$/i.test(cleanFnumber)) {
-      throw new Error('Invalid F-number format. Expected format: f1234567');
-    }
-
-    console.log('[AUTH_CONTEXT] Getting user data for F-number:', cleanFnumber);
-
-    const response = await apiRequest('/api/auth/get-user-by-fnumber', {
-      method: 'POST',
-      body: JSON.stringify({ 
-        fnumber: cleanFnumber  // **FIX: Ensure proper property name**
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('[AUTH_CONTEXT] getUserByFnumber failed:', errorData);
-      throw new Error(errorData.error || errorData.message || 'Failed to get user data');
-    }
-
-    const data = await response.json();
-    console.log('[AUTH_CONTEXT] User data retrieved successfully:', data.success);
-    
-    return data;
-  } catch (error) {
-    console.error('[AUTH_CONTEXT] Get user by F-number error:', error);
-    throw error;
-  }
-};
+  };
 
   
   /**
@@ -458,120 +458,194 @@ const getUserByFnumber = async (fnumber) => {
    * @returns {Promise<Object>} 2FA verification result
    */
  
-const verify2FA = async (code, sessionId = null) => {
-  try {
-    const activeSessionId = sessionId || twoFASessionId;
-    
-    if (!activeSessionId) {
-      throw new Error('No active 2FA session found');
-    }
 
-    console.log('[AUTH_CONTEXT] Sending 2FA verification request with:', {
-      code: code ? 'PROVIDED' : 'MISSING',
-      sessionId: activeSessionId ? 'PROVIDED' : 'MISSING'
-    });
-
-    const response = await apiRequest('/api/auth/verify-2fa', {
-      method: 'POST',
-      body: JSON.stringify({ 
-        code, 
-        token: activeSessionId,
-        fnumber: pendingLdapAuth?.fnumber
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('[AUTH_CONTEXT] 2FA verification failed:', errorData);
-      throw new Error(errorData.error || '2FA verification failed');
-    }
-
-    const data = await response.json();
-    console.log('[AUTH_CONTEXT] 2FA verification response:', data);
-
-    if (data.success) {
-      console.log('[AUTH_CONTEXT] 2FA verification successful');
+  const verify2FA = async (code, sessionId = null) => {
+    try {
+      const activeSessionId = sessionId || twoFASessionId;
       
-      // **FIX: Handle the case where backend returns complete user data**
-      if (data.user && data.token && data.sessionId) {
-        // Backend returned complete auth data
-        console.log('[AUTH_CONTEXT] Backend returned complete user data');
-        
-        setUser(data.user);
-        setToken(data.token);
-        setSessionId(data.sessionId);
-        
-        // Store in localStorage
-        localStorage.setItem('user', JSON.stringify(data.user));
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('sessionId', data.sessionId);
-        
-        // Clear 2FA state
-        setTwoFASessionId(null);
-        setPendingLdapAuth(null);
-        
-        return {
-          success: true,
-          user: data.user,
-          token: data.token,
-          sessionId: data.sessionId
-        };
-      } 
-      // **FIX: Handle the case where we need to fetch user data separately**
-      else if (data.fnumber || pendingLdapAuth?.fnumber) {
-        const fnumberToUse = data.fnumber || pendingLdapAuth?.fnumber;
-        console.log('[AUTH_CONTEXT] Fetching user data for fnumber:', fnumberToUse);
-        
-        try {
-          // **CRITICAL FIX: Ensure fnumber is properly formatted**
-          const cleanFnumber = fnumberToUse.toString().toLowerCase();
-          
-          const userData = await getUserByFnumber(cleanFnumber);
-          
-          if (userData.success && userData.user) {
-            console.log('[AUTH_CONTEXT] User data fetched successfully');
-            
-            // **FIX: Use the token from 2FA response or generate session**
-            const authToken = data.token || activeSessionId;
-            const authSessionId = data.sessionId || activeSessionId;
-            
-            setUser(userData.user);
-            setToken(authToken);
-            setSessionId(authSessionId);
-            
-            // Store in localStorage
-            localStorage.setItem('user', JSON.stringify(userData.user));
-            localStorage.setItem('token', authToken);
-            localStorage.setItem('sessionId', authSessionId);
-            
-            // Clear 2FA state
-            setTwoFASessionId(null);
-            setPendingLdapAuth(null);
-            
-            return {
-              success: true,
-              user: userData.user,
-              token: authToken,
-              sessionId: authSessionId
-            };
-          } else {
-            throw new Error('Failed to fetch user data');
-          }
-        } catch (userFetchError) {
-          console.error('[AUTH_CONTEXT] Error fetching user data:', userFetchError);
-          throw new Error('2FA verified but failed to load user profile. Please try logging in again.');
-        }
-      } else {
-        throw new Error('2FA verified but missing user identification data');
+      if (!activeSessionId) {
+        throw new Error('No active 2FA session found');
       }
+  
+      console.log('[AUTH_CONTEXT] Sending 2FA verification request with:', {
+        code: code ? 'PROVIDED' : 'MISSING',
+        sessionId: activeSessionId ? 'PROVIDED' : 'MISSING'
+      });
+  
+      const response = await apiRequest('/api/auth/verify-2fa', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          code, 
+          token: activeSessionId,
+          fnumber: pendingLdapAuth?.fnumber
+        }),
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('[AUTH_CONTEXT] 2FA verification failed:', errorData);
+        throw new Error(errorData.error || '2FA verification failed');
+      }
+  
+      const data = await response.json();
+      console.log('[AUTH_CONTEXT] 2FA verification response:', data);
+  
+      if (data.success) {
+        console.log('[AUTH_CONTEXT] 2FA verification successful');
+        
+        // **CRITICAL FIX: Handle authentication completion properly**
+        
+        // Case 1: Backend returns complete authentication data
+        if (data.user && data.token) {
+          console.log('[AUTH_CONTEXT] Backend returned complete auth data');
+          
+          const authToken = data.token;
+          const authSessionId = data.sessionId || activeSessionId;
+          
+          // Set auth state
+          setUser(data.user);
+          setToken(authToken);
+          setSessionId(authSessionId);
+          
+          // **CRITICAL: Store in localStorage immediately**
+          localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('token', authToken);
+          localStorage.setItem('sessionId', authSessionId);
+          
+          console.log('[AUTH_CONTEXT] Auth data stored in localStorage');
+          
+          // Clear 2FA state
+          setTwoFASessionId(null);
+          setPendingLdapAuth(null);
+          
+          return {
+            success: true,
+            user: data.user,
+            token: authToken,
+            sessionId: authSessionId
+          };
+        }
+        
+        // Case 2: Need to fetch user data separately
+        else if (data.fnumber || pendingLdapAuth?.fnumber) {
+          const fnumberToUse = data.fnumber || pendingLdapAuth?.fnumber;
+          console.log('[AUTH_CONTEXT] Fetching user data for fnumber:', fnumberToUse);
+          
+          try {
+            // **CRITICAL FIX: Use the session token for subsequent requests**
+            const tempToken = data.token || activeSessionId;
+            
+            // Temporarily set token for API requests
+            const oldToken = token;
+            setToken(tempToken);
+            
+            const userData = await getUserByFnumber(fnumberToUse);
+            
+            if (userData.success && userData.user) {
+              console.log('[AUTH_CONTEXT] User data fetched successfully');
+              
+              const authToken = data.token || tempToken;
+              const authSessionId = data.sessionId || activeSessionId;
+              
+              // Set final auth state
+              setUser(userData.user);
+              setToken(authToken);
+              setSessionId(authSessionId);
+              
+              // **CRITICAL: Store in localStorage immediately**
+              localStorage.setItem('user', JSON.stringify(userData.user));
+              localStorage.setItem('token', authToken);
+              localStorage.setItem('sessionId', authSessionId);
+              
+              console.log('[AUTH_CONTEXT] Complete auth data stored in localStorage');
+              
+              // Clear 2FA state
+              setTwoFASessionId(null);
+              setPendingLdapAuth(null);
+              
+              return {
+                success: true,
+                user: userData.user,
+                token: authToken,
+                sessionId: authSessionId
+              };
+            } else {
+              // Restore old token if user fetch failed
+              setToken(oldToken);
+              throw new Error('Failed to fetch user data');
+            }
+          } catch (userFetchError) {
+            console.error('[AUTH_CONTEXT] Error fetching user data:', userFetchError);
+            throw new Error('2FA verified but failed to load user profile. Please try logging in again.');
+          }
+        } 
+        
+        // Case 3: Auto-verification from polling (use existing session)
+        else if (code === "AUTO_VERIFIED") {
+          console.log('[AUTH_CONTEXT] Handling auto-verification from polling');
+          
+          // Use existing session as auth token
+          const authToken = activeSessionId;
+          const authSessionId = activeSessionId;
+          
+          // If we have pending LDAP auth, fetch user data
+          if (pendingLdapAuth?.fnumber) {
+            try {
+              // Temporarily set token for API requests
+              const oldToken = token;
+              setToken(authToken);
+              
+              const userData = await getUserByFnumber(pendingLdapAuth.fnumber);
+              
+              if (userData.success && userData.user) {
+                console.log('[AUTH_CONTEXT] User data fetched for auto-verification');
+                
+                // Set final auth state
+                setUser(userData.user);
+                setToken(authToken);
+                setSessionId(authSessionId);
+                
+                // **CRITICAL: Store in localStorage immediately**
+                localStorage.setItem('user', JSON.stringify(userData.user));
+                localStorage.setItem('token', authToken);
+                localStorage.setItem('sessionId', authSessionId);
+                
+                console.log('[AUTH_CONTEXT] Auto-verification auth data stored');
+                
+                // Clear 2FA state
+                setTwoFASessionId(null);
+                setPendingLdapAuth(null);
+                
+                return {
+                  success: true,
+                  user: userData.user,
+                  token: authToken,
+                  sessionId: authSessionId
+                };
+              } else {
+                setToken(oldToken);
+                throw new Error('Failed to fetch user data for auto-verification');
+              }
+            } catch (error) {
+              console.error('[AUTH_CONTEXT] Auto-verification user fetch error:', error);
+              throw error;
+            }
+          } else {
+            throw new Error('No pending LDAP authentication data found');
+          }
+        }
+        
+        else {
+          throw new Error('2FA verified but missing authentication data');
+        }
+      }
+  
+      return data;
+    } catch (error) {
+      console.error('[AUTH_CONTEXT] 2FA verification error:', error);
+      throw error;
     }
-
-    return data;
-  } catch (error) {
-    console.error('[AUTH_CONTEXT] 2FA verification error:', error);
-    throw error;
-  }
-};
+  };
   /**
  * Track 2FA verification status
  * @param {string} sessionId - 2FA session ID (required)

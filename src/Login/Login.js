@@ -466,7 +466,7 @@ const Login = () => {
   const [pollingInterval, setPollingInterval] = useState(null);
   
   const navigate = useNavigate();
-  const { login, authenticateLdap, verify2FA, track2FAStatus, isFnumber,setUser,getUserByFnumber } = useAuth();
+  const { login, authenticateLdap, verify2FA, track2FAStatus, isFnumber, setUser, getUserByFnumber, setToken } = useAuth();
 
   // Cleanup polling interval on component unmount
   useEffect(() => {
@@ -578,33 +578,60 @@ const Login = () => {
         
         if (statusResult.success) {
           if (statusResult.verificationStatus === "success") {
-            // 2FA was accepted on phone
-            console.log('[LOGIN] 2FA verified successfully');
+            // 2FA was accepted on phone - now verify to get the token
+            console.log('[LOGIN] 2FA verified successfully, now getting token');
             clearInterval(interval);
             setPollingInterval(null);
             setShowTwoFAModal(false);
             setLoading(true);
             
-            // **ENHANCEMENT: Fetch user data after 2FA success**
             try {
-              if (statusResult.fnumber) {
-                console.log('[LOGIN] Fetching user data for fnumber:', statusResult.fnumber);
-                const userData = await getUserByFnumber(statusResult.fnumber);
+              // **FIX: Call verify2FA to get the actual JWT token**
+              console.log('[LOGIN] Calling verify2FA to get JWT token');
+              const verifyResult = await verify2FA('', sessionId); // Empty code since 2FA was already verified
+              
+              if (verifyResult.success && verifyResult.token) {
+                console.log('[LOGIN] JWT token received from verify2FA');
                 
-                if (userData.success) {
-                  console.log('[LOGIN] User data fetched successfully:', userData.user);
-                  // Update auth context with complete user data
-                  setUser(userData.user);
-                } else {
-                  console.warn('[LOGIN] Failed to fetch user data:', userData.error);
+                // **CRITICAL: Store the token in localStorage and auth context**
+                localStorage.setItem('token', verifyResult.token);
+                if (setToken) {
+                  setToken(verifyResult.token);
                 }
+                
+                // Set user data from verify2FA response
+                if (verifyResult.user) {
+                  console.log('[LOGIN] Setting user data from verify2FA response');
+                  setUser(verifyResult.user);
+                  // Also store user in localStorage for persistence
+                  localStorage.setItem('user', JSON.stringify(verifyResult.user));
+                } else if (statusResult.fnumber) {
+                  // Fallback: fetch user data if not in verify response
+                  console.log('[LOGIN] Fetching user data for fnumber:', statusResult.fnumber);
+                  const userData = await getUserByFnumber(statusResult.fnumber);
+                  
+                  if (userData.success) {
+                    console.log('[LOGIN] User data fetched successfully:', userData.user);
+                    setUser(userData.user);
+                    localStorage.setItem('user', JSON.stringify(userData.user));
+                  } else {
+                    console.warn('[LOGIN] Failed to fetch user data:', userData.error);
+                  }
+                }
+                
+                console.log('[LOGIN] Login complete, navigating to dashboard');
+                navigate("/dashboard");
+              } else {
+                console.error('[LOGIN] verify2FA failed to return token:', verifyResult);
+                setError("Failed to complete login. Please try again.");
               }
-            } catch (userFetchError) {
-              console.error('[LOGIN] Error fetching user data:', userFetchError);
-              // Don't block login if user data fetch fails
+            } catch (verifyError) {
+              console.error('[LOGIN] Error calling verify2FA:', verifyError);
+              setError("Login completion failed. Please try again.");
+            } finally {
+              setLoading(false);
             }
             
-            navigate("/dashboard");
           } else if (statusResult.verificationStatus === "failed") {
             // 2FA was rejected
             console.log('[LOGIN] 2FA was rejected');
@@ -647,6 +674,7 @@ const Login = () => {
       }
     }, 300000);
   };
+
   const handleManualCodeSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -667,6 +695,20 @@ const Login = () => {
           clearInterval(pollingInterval);
           setPollingInterval(null);
         }
+        
+        // **FIX: Store token and user data for manual code entry too**
+        if (result.token) {
+          localStorage.setItem('token', result.token);
+          if (setToken) {
+            setToken(result.token);
+          }
+        }
+        
+        if (result.user) {
+          setUser(result.user);
+          localStorage.setItem('user', JSON.stringify(result.user));
+        }
+        
         setShowTwoFAModal(false);
         setShowTwoFA(false);
         navigate("/dashboard");
@@ -696,6 +738,19 @@ const Login = () => {
       const result = await verify2FA(twoFACode, twoFASessionId);
       
       if (result.success) {
+        // **FIX: Store token and user data for traditional 2FA too**
+        if (result.token) {
+          localStorage.setItem('token', result.token);
+          if (setToken) {
+            setToken(result.token);
+          }
+        }
+        
+        if (result.user) {
+          setUser(result.user);
+          localStorage.setItem('user', JSON.stringify(result.user));
+        }
+        
         navigate("/dashboard");
       } else {
         setError(result.message || "2FA verification failed");
@@ -738,7 +793,6 @@ const Login = () => {
 
   // Determine if user is entering f-number or email
   const isUsingFnumber = isFnumber(identifier);
-
   
   return (
     <div className="login-container">
